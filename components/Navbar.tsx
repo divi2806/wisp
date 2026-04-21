@@ -68,7 +68,7 @@ export default function Navbar() {
               document.getElementById("early-access")?.scrollIntoView({ behavior: "smooth" })
             }
           >
-            Early access
+            Beta access
           </Button>
         </div>
       </motion.div>

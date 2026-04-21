@@ -92,7 +92,7 @@ export default function CTA() {
               </Button>
             </motion.form>
 
-            <p className="text-slate-600 text-xs mt-5">No spam. Just early access when we're ready.</p>
+            <p className="text-slate-600 text-xs mt-5">No spam. Just beta access when we're ready.</p>
           </motion.div>
         </div>
       </section>

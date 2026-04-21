@@ -42,10 +42,10 @@ export default function Hero() {
             style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }}
           />
           <motion.span animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2, repeat: Infinity }}>
-            Live on Solana Mainnet
+            Launching Soon
           </motion.span>
           <span style={{ color: "#3f3f46" }}>·</span>
-          <span>Early Access</span>
+          <span>Beta Access</span>
         </motion.div>
 
         {/* Wisp mascot */}
