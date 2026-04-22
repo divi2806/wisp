@@ -10,12 +10,30 @@ export default function CTA() {
   const [email, setEmail] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [wispMood, setWispMood] = useState<"idle" | "happy" | "excited">("idle");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setWispMood("excited");
-    setShowModal(true);
+    if (!email || loading) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        return;
+      }
+      setWispMood("excited");
+      setShowModal(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,10 +105,15 @@ export default function CTA() {
                 type="submit"
                 variant="primary"
                 className="px-6 py-3.5 rounded-xl font-bold text-sm whitespace-nowrap"
+                disabled={loading}
               >
-                Join waitlist →
+                {loading ? "Joining…" : "Join waitlist →"}
               </Button>
             </motion.form>
+
+            {error && (
+              <p className="text-red-400 text-xs mt-3">{error}</p>
+            )}
 
             <p className="text-slate-600 text-xs mt-5">No spam. Just beta access when we're ready.</p>
           </motion.div>
