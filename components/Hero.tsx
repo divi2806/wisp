@@ -113,7 +113,7 @@ export default function Hero() {
             onMouseEnter={() => { setWispMood("excited"); setWispQuote("let's go! 🚀"); }}
             onMouseLeave={() => { setWispMood("idle"); setWispQuote(undefined); }}
           >
-            Connect Wallet{" "}
+            Join Waitlist{" "}
             <motion.span
               className="inline-block"
               animate={{ x: [0, 3, 0] }}
@@ -123,14 +123,16 @@ export default function Hero() {
             </motion.span>
           </Button>
 
-          <Button
-            variant="secondary"
-            className="px-8 py-3.5 rounded-xl text-sm"
-            onMouseEnter={() => { setWispMood("thinking"); setWispQuote("show me 🎬"); }}
-            onMouseLeave={() => { setWispMood("idle"); setWispQuote(undefined); }}
-          >
-            Watch demo
-          </Button>
+     {/*
+<Button
+  variant="secondary"
+  className="px-8 py-3.5 rounded-xl text-sm"
+  onMouseEnter={() => { setWispMood("thinking"); setWispQuote("show me 🎬"); }}
+  onMouseLeave={() => { setWispMood("idle"); setWispQuote(undefined); }}
+>
+  Watch demo
+</Button>
+*/}
         </motion.div>
 
         {/* Protocol strip */}
