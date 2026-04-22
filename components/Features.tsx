@@ -179,7 +179,7 @@ const features = [
   },
   {
     num: "02",
-    title: ["AI-Powered", "Insights"],
+    title: ["Wisp Magical", "Insights"],
     tag: "Actually smart",
     desc: "Wisp reads your liquidation proximity, APY decay, funding rates and concentration risk — then tells you exactly what to do.",
     mood: "thinking" as WispMood,
