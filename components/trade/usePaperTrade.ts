@@ -125,6 +125,10 @@ export function usePaperTrade(enabled: boolean) {
     setState((prev) => ({ ...prev, openOrders: prev.openOrders.filter((o) => o.id !== id) }));
   };
 
+  const clearFills = () => {
+    setState((prev) => ({ ...prev, fills: [] }));
+  };
+
   const processMark = (args: { symbol: string; markPrice: number }) => {
     const { symbol, markPrice } = args;
     const px = Number(markPrice);
@@ -181,6 +185,6 @@ export function usePaperTrade(enabled: boolean) {
 
   const reset = () => setState({ cashUSDT: 10_000, fills: [], openOrders: [] });
 
-  return { state, posBySymbol, placeMarket, placeLimit, cancelOrder, processMark, reset };
+  return { state, posBySymbol, placeMarket, placeLimit, cancelOrder, clearFills, processMark, reset };
 }
 
