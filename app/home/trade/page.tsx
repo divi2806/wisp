@@ -9,9 +9,11 @@ import { MarketsPanel } from "@/components/trade/MarketsPanel";
 import { CandlesChart, type Indicators } from "@/components/trade/CandlesChart";
 import { OrderPanel } from "@/components/trade/OrderPanel";
 import { DrawingToolbar, type DrawingTool } from "@/components/trade/DrawingToolbar";
+import { IndicatorsPanel } from "@/components/trade/IndicatorsPanel";
 import { useCandles, useMarkets } from "@/components/trade/useMarketData";
 import type { MarketMode } from "@/components/trade/types";
 import { usePaperTrade } from "@/components/trade/usePaperTrade";
+import { WispTradeChat, type TradeContext as WispTradeContext } from "@/components/trade/WispTradeChat";
 
 function heikinAshi(
   candles: { time: number; open: number; high: number; low: number; close: number; volume: number }[]
@@ -37,12 +39,122 @@ function fmtPrice(v: string | number) {
   return n.toPrecision(5);
 }
 
+function computeRSILast(closes: number[], period = 14) {
+  if (closes.length < period + 1) return null;
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) gain += d;
+    else loss -= d;
+  }
+  gain /= period;
+  loss /= period;
+  let rsi = 100 - 100 / (1 + (loss === 0 ? 100 : gain / loss));
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    const g = d > 0 ? d : 0;
+    const l = d < 0 ? -d : 0;
+    gain = (gain * (period - 1) + g) / period;
+    loss = (loss * (period - 1) + l) / period;
+    rsi = 100 - 100 / (1 + (loss === 0 ? 100 : gain / loss));
+  }
+  return Number.isFinite(rsi) ? rsi : null;
+}
+
+function computeEMASeries(values: number[], period: number) {
+  const k = 2 / (period + 1);
+  const out: number[] = [];
+  let ema = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (i < period - 1) continue;
+    ema =
+      i === period - 1
+        ? values.slice(0, period).reduce((s, v) => s + v, 0) / period
+        : values[i] * k + ema * (1 - k);
+    out.push(ema);
+  }
+  return out;
+}
+
+function computeMACDLast(closes: number[], fast = 12, slow = 26, signal = 9) {
+  // Align ema series by taking the overlapping tail.
+  const emaFast = computeEMASeries(closes, fast);
+  const emaSlow = computeEMASeries(closes, slow);
+  if (!emaFast.length || !emaSlow.length) return null;
+  const overlap = Math.min(emaFast.length, emaSlow.length);
+  const macd = emaFast.slice(emaFast.length - overlap).map((v, i) => v - emaSlow[emaSlow.length - overlap + i]);
+  const sig = computeEMASeries(macd, signal);
+  if (!sig.length) return null;
+  const macdLast = macd[macd.length - 1];
+  const sigLast = sig[sig.length - 1];
+  const histLast = macdLast - sigLast;
+  if (![macdLast, sigLast, histLast].every((x) => Number.isFinite(x))) return null;
+  return { macd: macdLast, signal: sigLast, hist: histLast };
+}
+
+function computePositionStats(
+  fills: { side: "buy" | "sell"; qty: number; price: number; atMs: number }[],
+  markPrice: number | null
+) {
+  // Avg-cost method with signed qty (supports net long or net short).
+  let qty = 0;
+  let avg = 0;
+  const ordered = [...fills].sort((a, b) => a.atMs - b.atMs);
+  for (const f of ordered) {
+    const delta = (f.side === "buy" ? 1 : -1) * Number(f.qty);
+    const px = Number(f.price);
+    if (!Number.isFinite(delta) || !Number.isFinite(px) || delta === 0) continue;
+
+    if (qty === 0) {
+      qty = delta;
+      avg = px;
+      continue;
+    }
+
+    const sameDir = qty > 0 ? delta > 0 : delta < 0;
+    if (sameDir) {
+      const newQty = qty + delta;
+      avg = (avg * Math.abs(qty) + px * Math.abs(delta)) / Math.abs(newQty);
+      qty = newQty;
+      continue;
+    }
+
+    // Reducing or flipping direction
+    const newQty = qty + delta;
+    if (qty > 0 && newQty > 0) {
+      qty = newQty; // reduced long
+    } else if (qty < 0 && newQty < 0) {
+      qty = newQty; // reduced short
+    } else if (newQty === 0) {
+      qty = 0;
+      avg = 0;
+    } else {
+      // flipped
+      qty = newQty;
+      avg = px;
+    }
+  }
+
+  const unrealizedPnL =
+    markPrice && Number.isFinite(markPrice) && markPrice > 0 && qty !== 0
+      ? (markPrice - avg) * qty
+      : 0;
+
+  return {
+    qty,
+    avgEntry: qty !== 0 ? avg : null,
+    unrealizedPnL: Number.isFinite(unrealizedPnL) ? unrealizedPnL : null,
+  };
+}
+
 export default function TradePage() {
   const [mode, setMode]       = useState<MarketMode>("spot");
   const [paper, setPaper]     = useState(true);
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
   const [pendingStep, setPendingStep] = useState(0);
   const [indicators, setIndicators] = useState<Indicators>({});
+  const [showIndicators, setShowIndicators] = useState(false);
 
   const { tickers, bySymbol, poolBySymbol, error: marketsError } = useMarkets("spot");
 
@@ -79,6 +191,9 @@ export default function TradePage() {
   }, [candles, candleType]);
 
   const last = displayCandles.length ? displayCandles[displayCandles.length - 1] : null;
+  const closesForIndicators = useMemo(() => displayCandles.map((c) => c.close), [displayCandles]);
+  const rsi14Last = useMemo(() => computeRSILast(closesForIndicators, 14), [closesForIndicators]);
+  const macdLast = useMemo(() => computeMACDLast(closesForIndicators, 12, 26, 9), [closesForIndicators]);
 
   const lastChangePct = useMemo(() => {
     if (!last) return null;
@@ -160,7 +275,16 @@ export default function TradePage() {
                     activeTool={activeTool}
                     onToolChange={handleToolChange}
                     pendingStep={pendingStep}
+                    showIndicators={showIndicators}
+                    onToggleIndicators={() => setShowIndicators((v) => !v)}
                   />
+
+                  {showIndicators && (
+                    <IndicatorsPanel
+                      indicators={indicators}
+                      setIndicators={setIndicators}
+                    />
+                  )}
 
                   {/* Chart content */}
                   <div className="flex-1 min-w-0">
@@ -236,33 +360,6 @@ export default function TradePage() {
                       </div>
                     </div>
 
-                    {/* ── Indicator toggles ── */}
-                    <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
-                      {([
-                        { key: "ma7",  label: "MA7",   color: "#f59e0b" },
-                        { key: "ma25", label: "MA25",  color: "#a78bfa" },
-                        { key: "ma99", label: "MA99",  color: "#f87171" },
-                        { key: "ema20",label: "EMA20", color: "#38bdf8" },
-                        { key: "bb",   label: "BB",    color: "rgba(167,139,250,0.7)" },
-                      ] as { key: keyof Indicators; label: string; color: string }[]).map(({ key, label, color }) => {
-                        const on = !!indicators[key];
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => setIndicators((prev) => ({ ...prev, [key]: !prev[key] }))}
-                            className="px-2 py-0.5 rounded-lg text-xs font-mono font-semibold transition-all"
-                            style={{
-                              border: `1px solid ${on ? color : "rgba(255,255,255,0.08)"}`,
-                              background: on ? `${color}22` : "transparent",
-                              color: on ? color : "#52525b",
-                            }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
                     {/* ── OHLC bar ── */}
                     <div className="px-4 pb-2 flex flex-wrap gap-x-3 gap-y-1" style={{ fontSize: 11 }}>
                       {[
@@ -306,6 +403,61 @@ export default function TradePage() {
                       <div className="px-4 pb-4 flex items-start gap-2">
                         <AlertTriangle size={14} color="#f87171" style={{ marginTop: 2, flexShrink: 0 }} />
                         <p style={{ fontSize: 12, color: "#fca5a5", lineHeight: 1.45 }}>{candlesError}</p>
+                      </div>
+                    ) : !poolId ? (
+                      <div className="px-4 pb-4">
+                        <div
+                          className="rounded-2xl overflow-hidden flex items-center justify-center text-center"
+                          style={{
+                            height: 620,
+                            background: "rgba(255,255,255,0.02)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                          }}
+                        >
+                          <div className="px-6">
+                            <p className="font-semibold" style={{ color: "#a1a1aa", fontSize: 13 }}>
+                              No chart available for {activeSymbol}
+                            </p>
+                            <p style={{ color: "#3f3f46", fontSize: 11, marginTop: 6, lineHeight: 1.6 }}>
+                              This token is treated as a stable asset in Markets. Pick a non-stable token (SOL, JUP, BONK…)
+                              to view pool candles.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : candlesLoading && (!displayCandles || displayCandles.length === 0) ? (
+                      <div className="px-4 pb-4">
+                        <div
+                          className="rounded-2xl overflow-hidden"
+                          style={{
+                            height: 620,
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                          }}
+                        >
+                          <div className="h-full w-full flex items-center justify-center relative">
+                            {/* shimmer blocks */}
+                            <motion.div
+                              className="absolute inset-0"
+                              style={{
+                                background:
+                                  "linear-gradient(110deg, transparent 0%, rgba(167,139,250,0.10) 35%, transparent 70%)",
+                                transform: "translateX(-60%)",
+                              }}
+                              animate={{ transform: ["translateX(-60%)", "translateX(60%)"] }}
+                              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                            />
+                            <div className="relative text-center px-6">
+                              <p className="font-semibold" style={{ color: "#a1a1aa", fontSize: 13 }}>
+                                Loading chart…
+                              </p>
+                              <p style={{ color: "#3f3f46", fontSize: 11, marginTop: 6 }}>
+                                Fetching pool candles and indicators
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -355,6 +507,60 @@ export default function TradePage() {
           </div>
         )}
       </div>
+
+      {/* Floating Wisp chat (trade copilot) */}
+      <WispTradeChat
+        context={{
+          symbol: activeSymbol,
+          interval,
+          candleType,
+          indicators,
+          livePrice,
+          recentCandles: displayCandles
+            .slice(Math.max(0, displayCandles.length - 120))
+            .map((c) => ({ t: c.time, o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume })),
+          indicatorValues: {
+            rsi14: rsi14Last,
+            macd: macdLast,
+          },
+          lastCandle: last
+            ? {
+                open: last.open,
+                high: last.high,
+                low: last.low,
+                close: last.close,
+                changePct: lastChangePct,
+                rangePct: lastRangePct,
+              }
+            : null,
+          paper: {
+            enabled: paper,
+            cashUSDT: paperAcct.state.cashUSDT,
+            position: paperAcct.posBySymbol.get(activeSymbol) ?? 0,
+            ...computePositionStats(
+              paperAcct.state.fills.filter((f) => f.symbol === activeSymbol),
+              livePrice
+            ),
+            openOrdersCount: paperAcct.state.openOrders.length,
+            fillsCount: paperAcct.state.fills.length,
+            latestFills: paperAcct.state.fills
+              .filter((f) => f.symbol === activeSymbol)
+              .slice(0, 25)
+              .map((f) => ({ atMs: f.atMs, side: f.side, qty: f.qty, price: f.price, notional: f.notional })),
+            openOrders: paperAcct.state.openOrders
+              .filter((o) => o.symbol === activeSymbol)
+              .slice(0, 25)
+              .map((o) => ({
+                id: o.id,
+                atMs: o.atMs,
+                side: o.side,
+                type: o.type,
+                qty: o.qty,
+                limitPrice: o.limitPrice ?? null,
+              })),
+          },
+        } satisfies WispTradeContext}
+      />
     </div>
   );
 }
