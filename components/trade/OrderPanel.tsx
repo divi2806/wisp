@@ -90,7 +90,7 @@ export function OrderPanel(props: {
 
   return (
     <section
-      className="rounded-2xl overflow-hidden flex flex-col"
+      className="rounded-2xl overflow-hidden flex flex-col min-h-0"
       style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.06)" }}
       aria-label="Order entry"
     >
@@ -282,7 +282,7 @@ export function OrderPanel(props: {
       </div>
 
       {paper && (
-        <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        <div className="border-t flex-1 min-h-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
           {/* Open orders */}
           {paperAcct.state.openOrders.length > 0 && (
             <div className="px-4 pt-3">
@@ -324,11 +324,25 @@ export function OrderPanel(props: {
             <p className="font-semibold" style={{ fontSize: 12, color: "#e4e4e7" }}>
               Fills
             </p>
-            <span className="font-mono" style={{ fontSize: 10, color: "#3f3f46" }}>
-              {paperAcct.state.fills.length}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono" style={{ fontSize: 10, color: "#3f3f46" }}>
+                {paperAcct.state.fills.length}
+              </span>
+              {paperAcct.state.fills.length > 0 && (
+                <motion.button
+                  onClick={paperAcct.clearFills}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold"
+                  style={{ color: "#3f3f46", border: "1px solid rgba(255,255,255,0.06)" }}
+                  whileHover={{ background: "rgba(255,255,255,0.04)", color: "#a1a1aa" }}
+                  whileTap={{ scale: 0.98 }}
+                  title="Clear fills"
+                >
+                  Clear
+                </motion.button>
+              )}
+            </div>
           </div>
-          <div className="max-h-[240px] overflow-y-auto">
+          <div className="overflow-y-auto min-h-0" style={{ maxHeight: 320 }}>
             {paperAcct.state.fills.length === 0 ? (
               <div className="px-4 pb-4 text-xs" style={{ color: "#52525b" }}>
                 No fills yet.
