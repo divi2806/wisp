@@ -141,7 +141,7 @@ export default function WaitlistSuccessModal({ email, onClose }: Props) {
                 backgroundClip: "text",
               }}
             >
-              You're on the list!
+              You&apos;re on the list!
             </div>
           </motion.div>
 
@@ -156,7 +156,7 @@ export default function WaitlistSuccessModal({ email, onClose }: Props) {
             <span style={{ color: "#a1a1aa" }}>
               {email.split("@")[0]}
             </span>
-            , you'll be first to know when we go live on Solana.
+            , you&apos;ll be first to know when we go live on Solana.
           </motion.p>
 
           {/* Close button */}

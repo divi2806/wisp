@@ -115,7 +115,7 @@ export default function CTA() {
               <p className="text-red-400 text-xs mt-3">{error}</p>
             )}
 
-            <p className="text-slate-600 text-xs mt-5">No spam. Just beta access when we're ready.</p>
+            <p className="text-slate-600 text-xs mt-5">No spam. Just beta access when we&apos;re ready.</p>
           </motion.div>
         </div>
       </section>

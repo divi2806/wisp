@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useAnimation } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export type WispMood =
   | "idle"
@@ -108,11 +108,10 @@ export default function WispMascot({
 }: WispMascotProps) {
   const [currentMood, setCurrentMood] = useState<WispMood>(mood);
   const controls = useAnimation();
-  const glow = moodGlow[currentMood];
+  const effectiveMood = interactive ? currentMood : mood;
+  const glow = moodGlow[effectiveMood];
   const primary = "#a78bfa";
   const secondary = "#7c3aed";
-
-  useEffect(() => { setCurrentMood(mood); }, [mood]);
 
   const handleClick = () => {
     if (!interactive) return;
@@ -122,7 +121,7 @@ export default function WispMascot({
     controls.start({ rotate: [0, -12, 12, -6, 6, 0], transition: { duration: 0.45 } });
   };
 
-  const isSleeping = currentMood === "sleep";
+  const isSleeping = effectiveMood === "sleep";
 
   return (
     <motion.div
@@ -201,11 +200,11 @@ export default function WispMascot({
         }}
       >
         <defs>
-          <radialGradient id={`bg-${currentMood}`} cx="50%" cy="38%" r="62%">
+          <radialGradient id={`bg-${effectiveMood}`} cx="50%" cy="38%" r="62%">
             <stop offset="0%" stopColor={primary} />
             <stop offset="100%" stopColor={secondary} />
           </radialGradient>
-          <radialGradient id={`ig-${currentMood}`} cx="42%" cy="30%" r="55%">
+          <radialGradient id={`ig-${effectiveMood}`} cx="42%" cy="30%" r="55%">
             <stop offset="0%" stopColor="white" stopOpacity="0.28" />
             <stop offset="100%" stopColor="white" stopOpacity="0" />
           </radialGradient>
@@ -244,12 +243,12 @@ export default function WispMascot({
         />
 
         {/* Body */}
-        <ellipse cx="48" cy="47" rx="38" ry="41" fill={`url(#bg-${currentMood})`} />
-        <ellipse cx="48" cy="41" rx="27" ry="29" fill={`url(#ig-${currentMood})`} />
+        <ellipse cx="48" cy="47" rx="38" ry="41" fill={`url(#bg-${effectiveMood})`} />
+        <ellipse cx="48" cy="41" rx="27" ry="29" fill={`url(#ig-${effectiveMood})`} />
         <ellipse cx="37" cy="31" rx="7" ry="5" fill="white" opacity="0.22" />
 
         {/* Eyes */}
-        {currentMood === "rich" ? (
+        {effectiveMood === "rich" ? (
           <>
             <text x="31" y="49" fontSize="13" fill="white" fontWeight="900" opacity="0.95">$</text>
             <text x="51" y="49" fontSize="13" fill="white" fontWeight="900" opacity="0.95">$</text>
@@ -257,22 +256,22 @@ export default function WispMascot({
         ) : (
           <>
             <motion.path
-              d={eyeShapes[currentMood].l}
+              d={eyeShapes[effectiveMood].l}
               stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"
-              animate={{ d: eyeShapes[currentMood].l }}
+              animate={{ d: eyeShapes[effectiveMood].l }}
               transition={{ duration: 0.3 }}
             />
             <motion.path
-              d={eyeShapes[currentMood].r}
+              d={eyeShapes[effectiveMood].r}
               stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"
-              animate={{ d: eyeShapes[currentMood].r }}
+              animate={{ d: eyeShapes[effectiveMood].r }}
               transition={{ duration: 0.3 }}
             />
           </>
         )}
 
         {/* Eye shine dots */}
-        {currentMood !== "sleep" && currentMood !== "dead" && currentMood !== "rich" && (
+        {effectiveMood !== "sleep" && effectiveMood !== "dead" && effectiveMood !== "rich" && (
           <>
             <circle cx="38.5" cy="46" r="2" fill="white" opacity="0.85" />
             <circle cx="58.5" cy="46" r="2" fill="white" opacity="0.85" />
@@ -280,15 +279,15 @@ export default function WispMascot({
         )}
 
         {/* Blink */}
-        {currentMood !== "sleep" && currentMood !== "dead" && (
+        {effectiveMood !== "sleep" && effectiveMood !== "dead" && (
           <>
             <motion.rect x="31" y="39" width="14" height="11" rx="5.5"
-              fill={`url(#bg-${currentMood})`}
+              fill={`url(#bg-${effectiveMood})`}
               animate={{ scaleY: [0,0,0,0,0,0,0,0,0,0,1,0] }}
               transition={{ duration: 5, repeat: Infinity, times: [0,.09,.18,.27,.36,.45,.54,.63,.72,.81,.9,1] }}
             />
             <motion.rect x="51" y="39" width="14" height="11" rx="5.5"
-              fill={`url(#bg-${currentMood})`}
+              fill={`url(#bg-${effectiveMood})`}
               animate={{ scaleY: [0,0,0,0,0,0,0,0,0,0,1,0] }}
               transition={{ duration: 5, repeat: Infinity, times: [0,.09,.18,.27,.36,.45,.54,.63,.72,.81,.9,1] }}
             />
@@ -297,14 +296,14 @@ export default function WispMascot({
 
         {/* Mouth */}
         <motion.path
-          d={mouthShapes[currentMood]}
+          d={mouthShapes[effectiveMood]}
           stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"
-          animate={{ d: mouthShapes[currentMood] }}
+          animate={{ d: mouthShapes[effectiveMood] }}
           transition={{ duration: 0.3 }}
         />
 
         {/* Blush */}
-        {(currentMood === "happy" || currentMood === "excited" || currentMood === "rich") && (
+        {(effectiveMood === "happy" || effectiveMood === "excited" || effectiveMood === "rich") && (
           <>
             <ellipse cx="29" cy="56" rx="7" ry="4" fill="#c4b5fd" opacity="0.35" />
             <ellipse cx="67" cy="56" rx="7" ry="4" fill="#c4b5fd" opacity="0.35" />
@@ -312,7 +311,7 @@ export default function WispMascot({
         )}
 
         {/* Thinking dots */}
-        {currentMood === "thinking" && (
+        {effectiveMood === "thinking" && (
           <motion.g animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.4, repeat: Infinity }}>
             <circle cx="73" cy="26" r="2.5" fill="white" opacity="0.55" />
             <circle cx="79" cy="18" r="3.5" fill="white" opacity="0.55" />
@@ -321,14 +320,14 @@ export default function WispMascot({
         )}
 
         {/* Mischief raised eyebrow */}
-        {currentMood === "mischief" && (
+        {effectiveMood === "mischief" && (
           <motion.path d="M 53 38 Q 58 34 63 37" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"
             animate={{ rotate: [0, 3, 0] }} transition={{ duration: 0.8, repeat: Infinity }}
           />
         )}
 
         {/* Rich sparkle */}
-        {currentMood === "rich" && (
+        {effectiveMood === "rich" && (
           <motion.g animate={{ opacity: [0.6, 1, 0.6], rotate: [0, 15, 0] }} transition={{ duration: 1.2, repeat: Infinity }}>
             <text x="68" y="24" fontSize="9" fill="#c4b5fd">✦</text>
           </motion.g>
