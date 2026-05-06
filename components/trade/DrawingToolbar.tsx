@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MousePointer2, Minus, TrendingUp, GitMerge, Trash2 } from "lucide-react";
+import { MousePointer2, Minus, TrendingUp, GitMerge, Trash2, SlidersHorizontal } from "lucide-react";
 
 export type DrawingTool = "cursor" | "hline" | "trendline" | "fib" | "eraser";
 
@@ -16,10 +16,14 @@ export function DrawingToolbar({
   activeTool,
   onToolChange,
   pendingStep,
+  showIndicators,
+  onToggleIndicators,
 }: {
   activeTool: DrawingTool;
   onToolChange: (t: DrawingTool) => void;
   pendingStep?: number; // 1 = first point placed, waiting for second
+  showIndicators?: boolean;
+  onToggleIndicators?: () => void;
 }) {
   return (
     <div
@@ -69,6 +73,26 @@ export function DrawingToolbar({
       >
         <Trash2 size={13} strokeWidth={1.6} />
       </motion.button>
+
+      {/* Indicators */}
+      {onToggleIndicators && (
+        <motion.button
+          onClick={onToggleIndicators}
+          title="Indicators"
+          className="flex items-center justify-center w-8 h-8 rounded-lg mt-1"
+          style={{
+            color: showIndicators ? "#38bdf8" : "#3f3f46",
+            background: showIndicators ? "rgba(56,189,248,0.12)" : "rgba(0,0,0,0)",
+          }}
+          whileHover={{
+            background: showIndicators ? "rgba(56,189,248,0.16)" : "rgba(255,255,255,0.05)",
+            color: showIndicators ? "#38bdf8" : "#71717a",
+          }}
+          whileTap={{ scale: 0.92 }}
+        >
+          <SlidersHorizontal size={13} strokeWidth={1.7} />
+        </motion.button>
+      )}
     </div>
   );
 }
