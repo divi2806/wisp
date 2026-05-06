@@ -165,6 +165,7 @@ export default function TradePage() {
     if (!tickers) return symbol || defaultSymbol;
     return tickers.some((t) => t.symbol === symbol) ? symbol : defaultSymbol;
   }, [tickers, symbol, defaultSymbol]);
+  const availableSymbols = useMemo(() => (tickers ?? []).map((t) => t.symbol).slice(0, 200), [tickers]);
 
   const [interval, setInterval]     = useState("15m");
   const [candleType, setCandleType] = useState<"candles" | "heikin">("candles");
@@ -510,6 +511,8 @@ export default function TradePage() {
 
       {/* Floating Wisp chat (trade copilot) */}
       <WispTradeChat
+        onPickSymbol={(s) => setSymbol(s)}
+        availableSymbols={availableSymbols}
         context={{
           symbol: activeSymbol,
           interval,

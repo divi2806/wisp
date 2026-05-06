@@ -41,12 +41,32 @@ export type TradeContext = {
   };
 };
 
-export function WispTradeChat(props: { context: TradeContext }) {
-  const { context } = props;
+type ChatMsg = Msg & { showChart?: boolean };
+
+function parseWispActions(text: string) {
+  const switchRe = /\[\[SWITCH_SYMBOL:([A-Za-z0-9_-]{2,20})\]\]/g;
+  const showChartRe = /\[\[SHOW_CHART\]\]/g;
+  let switchSymbol: string | null = null;
+  let showChart = false;
+
+  const switchMatch = switchRe.exec(text);
+  if (switchMatch?.[1]) switchSymbol = switchMatch[1].toUpperCase();
+  if (showChartRe.test(text)) showChart = true;
+
+  const cleaned = text.replace(switchRe, "").replace(showChartRe, "").trim();
+  return { cleaned, switchSymbol, showChart };
+}
+
+export function WispTradeChat(props: {
+  context: TradeContext;
+  availableSymbols?: string[];
+  onPickSymbol?: (symbol: string) => void;
+}) {
+  const { context, availableSymbols = [], onPickSymbol } = props;
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
+  const [msgs, setMsgs] = useState<ChatMsg[]>(() => [
     {
       id: crypto.randomUUID(),
       role: "wisp",
@@ -84,8 +104,21 @@ export function WispTradeChat(props: { context: TradeContext }) {
       });
       const json = (await res.json()) as { reply?: string; error?: string };
       if (!res.ok) throw new Error(json.error ?? "AI failed");
-      const reply = (json.reply ?? "").trim() || "…I blanked. Ask again?";
-      setMsgs((p) => [...p, { id: crypto.randomUUID(), role: "wisp", text: reply }]);
+      const rawReply = (json.reply ?? "").trim() || "…I blanked. Ask again?";
+      const parsed = parseWispActions(rawReply);
+
+      if (parsed.switchSymbol && onPickSymbol) {
+        const ok =
+          availableSymbols.length === 0
+            ? true
+            : availableSymbols.some((s) => s.toUpperCase() === parsed.switchSymbol);
+        if (ok) onPickSymbol(parsed.switchSymbol);
+      }
+
+      setMsgs((p) => [
+        ...p,
+        { id: crypto.randomUUID(), role: "wisp", text: parsed.cleaned, showChart: parsed.showChart },
+      ]);
       setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
     } catch {
       setMsgs((p) => [...p, { id: crypto.randomUUID(), role: "wisp", text: "I’m rate-limited / offline. Try again in a bit." }]);
@@ -204,16 +237,26 @@ export function WispTradeChat(props: { context: TradeContext }) {
                 )}
                 {msgs.map((m) => (
                   <div key={m.id} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-                    <div
-                      className="px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed"
-                      style={{
-                        maxWidth: "85%",
-                        background: m.role === "user" ? "rgba(56,189,248,0.14)" : "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        color: m.role === "user" ? "#dbeafe" : "#a1a1aa",
-                      }}
-                    >
-                      {m.text}
+                    <div style={{ maxWidth: "85%" }}>
+                      {m.role === "wisp" && m.showChart && context.recentCandles && context.recentCandles.length > 5 && (
+                        <div className="mb-2">
+                          <MiniCandleViz
+                            candles={context.recentCandles}
+                            fills={context.paper?.latestFills ?? []}
+                            height={150}
+                          />
+                        </div>
+                      )}
+                      <div
+                        className="px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed"
+                        style={{
+                          background: m.role === "user" ? "rgba(56,189,248,0.14)" : "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          color: m.role === "user" ? "#dbeafe" : "#a1a1aa",
+                        }}
+                      >
+                        {m.text}
+                      </div>
                     </div>
                   </div>
                 ))}
