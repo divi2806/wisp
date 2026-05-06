@@ -65,7 +65,12 @@ export function useCandles(opts: { poolId: string; interval: string }) {
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!poolId) return;
+    if (!poolId) {
+      setCandles([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       setError(null);
