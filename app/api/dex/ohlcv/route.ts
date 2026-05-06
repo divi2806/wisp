@@ -42,27 +42,47 @@ export async function GET(req: NextRequest) {
     }
 
     const { timeframe, aggregate } = intervalToGecko(interval);
-    const raw = await fetchPoolOHLCV({
-      poolId,
-      timeframe,
-      aggregate,
-      limit: Number.isFinite(limit) ? limit : 300,
-    });
+    try {
+      const raw = await fetchPoolOHLCV({
+        poolId,
+        timeframe,
+        aggregate,
+        limit: Number.isFinite(limit) ? limit : 300,
+      });
 
-    const candles = raw
-      .map((c) => ({
-        time: c[0],
-        open: c[1],
-        high: c[2],
-        low: c[3],
-        close: c[4],
-        volume: c[5],
-      }))
-      .reverse(); // Gecko returns newest-first
+      const candles = raw
+        .map((c) => ({
+          time: c[0],
+          open: c[1],
+          high: c[2],
+          low: c[3],
+          close: c[4],
+          volume: c[5],
+        }))
+        .reverse(); // Gecko returns newest-first
 
-    const body = { poolId, interval, candles };
-    cached.set(cacheKey, { atMs: now, body });
-    return NextResponse.json(body, { status: 200 });
+      const body = { poolId, interval, candles, stale: false };
+      cached.set(cacheKey, { atMs: now, body });
+      return NextResponse.json(body, { status: 200 });
+    } catch (err: unknown) {
+      // GeckoTerminal rate-limits frequently (429). Prefer showing stale cached candles over breaking the UI.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (hit) {
+        const body =
+          typeof hit.body === "object" && hit.body !== null
+            ? { ...(hit.body as Record<string, unknown>), stale: true, warning: "rate_limited" }
+            : { poolId, interval, candles: [], stale: true, warning: "rate_limited" };
+        return NextResponse.json(body, {
+          status: 200,
+          headers: { "x-wisp-stale": "1", "x-wisp-warning": msg.includes("429") ? "rate_limited" : "upstream_error" },
+        });
+      }
+      // No cache to fall back to: surface as 429 so client can backoff.
+      if (msg.includes("429")) {
+        return NextResponse.json({ error: "Rate limited by data provider.", stale: false }, { status: 429 });
+      }
+      throw err;
+    }
   } catch (err: unknown) {
     console.error(err);
     return NextResponse.json({ error: "Failed to load OHLCV." }, { status: 500 });
