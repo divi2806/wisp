@@ -6,10 +6,12 @@ import PortfolioPreview from "@/components/PortfolioPreview";
 import Protocols from "@/components/Protocols";
 import CTA from "@/components/CTA";
 import Footer from "@/components/Footer";
+import SmoothScroll from "@/components/SmoothScroll";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#080b14] text-slate-200 overflow-x-hidden">
+      <SmoothScroll />
       <Navbar />
       <Hero />
       <Features />
