@@ -234,7 +234,11 @@ export default function TradePage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div
+      data-native-scroll
+      className="h-[100dvh] min-h-0 overflow-y-auto overscroll-contain"
+      style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}
+    >
       <TradeTopBar mode={mode} setMode={setMode} paper={paper} setPaper={setPaper} symbol={activeSymbol} />
 
       <div className="px-8 pb-10">
