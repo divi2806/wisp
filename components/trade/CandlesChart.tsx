@@ -167,11 +167,12 @@ export function CandlesChart(props: {
   onToolComplete?: () => void;
   onPendingStep?: (step: number) => void;
   livePrice?: number | null;
+  referencePrice?: { price: number | null; title: string; color?: string } | null;
   symbol?: string;
   indicators?: Indicators;
 }) {
   const { candles, height = 420, markers, activeTool = "cursor",
-    onToolComplete, onPendingStep, livePrice, symbol, indicators = {} } = props;
+    onToolComplete, onPendingStep, livePrice, referencePrice, symbol, indicators = {} } = props;
 
   const wrapRef     = useRef<HTMLDivElement>(null);
   const chartRef    = useRef<IChartApi | null>(null);
@@ -180,6 +181,7 @@ export function CandlesChart(props: {
   const markersRef  = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const indRef      = useRef<IndSeries>({});
   const drawRef     = useRef<Drawing>({ priceLines: [], trendLines: [], fibLines: [] });
+  const referenceLineRef = useRef<IPriceLine | null>(null);
   const pendingRef  = useRef<PendingPoint | null>(null);
 
   const activeToolRef   = useRef(activeTool);
@@ -308,9 +310,28 @@ export function CandlesChart(props: {
       (chart as any).unsubscribeClick(handleClick);
       chart.remove();
       chartRef.current = seriesRef.current = volRef.current = markersRef.current = null;
+      referenceLineRef.current = null;
       indRef.current = {};
     };
   }, [height]);
+
+  useEffect(() => {
+    const s = seriesRef.current;
+    if (!s) return;
+    if (referenceLineRef.current) {
+      try { s.removePriceLine(referenceLineRef.current); } catch { /* ignore */ }
+      referenceLineRef.current = null;
+    }
+    if (!referencePrice?.price || !Number.isFinite(referencePrice.price)) return;
+    referenceLineRef.current = s.createPriceLine({
+      price: referencePrice.price,
+      color: referencePrice.color ?? "#fbbf24",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: referencePrice.title,
+    });
+  }, [referencePrice?.price, referencePrice?.title, referencePrice?.color]);
 
   /* ── Erase drawings ─────────────────────────────────────────────────────── */
   useEffect(() => {
