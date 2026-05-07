@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, X } from "lucide-react";
 import WispMascot, { type WispMood } from "@/components/WispMascot";
 import { MiniCandleViz } from "@/components/trade/MiniCandleViz";
 
+type MiniCandle = { t: number; o: number; h: number; l: number; c: number; v: number };
 type Msg = { id: string; role: "user" | "wisp"; text: string };
 
 export type TradeContext = {
@@ -14,7 +15,7 @@ export type TradeContext = {
   candleType?: string;
   indicators?: Record<string, boolean>;
   livePrice?: number | null;
-  recentCandles?: Array<{ t: number; o: number; h: number; l: number; c: number; v: number }>;
+  recentCandles?: MiniCandle[];
   indicatorValues?: {
     rsi14?: number | null;
     macd?: { macd: number; signal: number; hist: number } | null;
@@ -41,7 +42,11 @@ export type TradeContext = {
   };
 };
 
-type ChatMsg = Msg & { showChart?: boolean };
+type ChatMsg = Msg & {
+  showChart?: boolean;
+  chartCandles?: MiniCandle[];
+  chartSymbol?: string;
+};
 
 function parseWispActions(text: string) {
   const switchRe = /\[\[SWITCH_SYMBOL:([A-Za-z0-9_-]{2,20})\]\]/g;
@@ -54,7 +59,86 @@ function parseWispActions(text: string) {
   if (showChartRe.test(text)) showChart = true;
 
   const cleaned = text.replace(switchRe, "").replace(showChartRe, "").trim();
+  if (!showChart) showChart = shouldShowChart(cleaned);
   return { cleaned, switchSymbol, showChart };
+}
+
+function shouldShowChart(text: string) {
+  return /\b(chart|candle|candlestick|wick|rsi|macd|indicator|support|resistance|breakout|breakdown|trend|entry|exit|stop|invalidation|scenario|green|red)\b/i.test(
+    text
+  );
+}
+
+function renderInline(text: string) {
+  return text.split(/(\*\*[^*]+?\*\*|`[^`]+?`)/g).map((chunk, idx) => {
+    if (chunk.startsWith("**") && chunk.endsWith("**")) {
+      return (
+        <strong key={idx} style={{ color: "#e4e4e7", fontWeight: 700 }}>
+          {chunk.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (chunk.startsWith("`") && chunk.endsWith("`")) {
+      return (
+        <code
+          key={idx}
+          className="font-mono rounded-md px-1 py-0.5"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#c4b5fd", fontSize: "0.92em" }}
+        >
+          {chunk.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return <span key={idx}>{chunk.replace(/\*\*/g, "").replace(/`/g, "")}</span>;
+  });
+}
+
+function Prose({ text }: { text: string }) {
+  const lines = text.split("\n");
+
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={idx} className="h-1" />;
+
+        const heading = /^#{1,6}\s+(.+)$/.exec(trimmed);
+        if (heading) {
+          return (
+            <p key={idx} className="font-semibold" style={{ color: "#e4e4e7" }}>
+              {renderInline(heading[1])}
+            </p>
+          );
+        }
+
+        const bullet = /^[-*]\s+(.+)$/.exec(trimmed);
+        if (bullet) {
+          return (
+            <div key={idx} className="flex gap-2">
+              <span style={{ color: "#71717a" }}>•</span>
+              <span>{renderInline(bullet[1])}</span>
+            </div>
+          );
+        }
+
+        const numbered = /^(\d+)[.)]\s+(.+)$/.exec(trimmed);
+        if (numbered) {
+          return (
+            <div key={idx} className="flex gap-2">
+              <span className="font-mono" style={{ color: "#71717a" }}>
+                {numbered[1]}.
+              </span>
+              <span>{renderInline(numbered[2])}</span>
+            </div>
+          );
+        }
+
+        return <p key={idx}>{renderInline(trimmed)}</p>;
+      })}
+    </div>
+  );
 }
 
 export function WispTradeChat(props: {
@@ -74,8 +158,17 @@ export function WispTradeChat(props: {
     },
   ]);
   const listRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   const title = useMemo(() => context.symbol ?? "Trade", [context.symbol]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [msgs, loading, open]);
 
   const mood = useMemo<WispMood>(() => {
     if (loading) return "thinking";
@@ -102,10 +195,23 @@ export function WispTradeChat(props: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, context }),
       });
-      const json = (await res.json()) as { reply?: string; error?: string };
+      const json = (await res.json()) as {
+        reply?: string;
+        error?: string;
+        requestedMarket?: {
+          symbol: string;
+          name: string;
+          interval: string;
+          recentCandles: MiniCandle[];
+        } | null;
+      };
       if (!res.ok) throw new Error(json.error ?? "AI failed");
       const rawReply = (json.reply ?? "").trim() || "…I blanked. Ask again?";
       const parsed = parseWispActions(rawReply);
+      const requestedCandles =
+        json.requestedMarket?.recentCandles && json.requestedMarket.recentCandles.length > 5
+          ? json.requestedMarket.recentCandles
+          : undefined;
 
       if (parsed.switchSymbol && onPickSymbol) {
         const ok =
@@ -117,9 +223,15 @@ export function WispTradeChat(props: {
 
       setMsgs((p) => [
         ...p,
-        { id: crypto.randomUUID(), role: "wisp", text: parsed.cleaned, showChart: parsed.showChart },
+        {
+          id: crypto.randomUUID(),
+          role: "wisp",
+          text: parsed.cleaned,
+          showChart: parsed.showChart || Boolean(requestedCandles),
+          chartCandles: requestedCandles,
+          chartSymbol: json.requestedMarket?.symbol,
+        },
       ]);
-      setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
     } catch {
       setMsgs((p) => [...p, { id: crypto.randomUUID(), role: "wisp", text: "I’m rate-limited / offline. Try again in a bit." }]);
     } finally {
@@ -206,7 +318,7 @@ export function WispTradeChat(props: {
               </div>
 
               {/* Messages */}
-              <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3" aria-live="polite">
                 {context.recentCandles && context.recentCandles.length > 5 && (
                   <div className="mb-2">
                     <MiniCandleViz
@@ -238,10 +350,15 @@ export function WispTradeChat(props: {
                 {msgs.map((m) => (
                   <div key={m.id} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
                     <div style={{ maxWidth: "85%" }}>
-                      {m.role === "wisp" && m.showChart && context.recentCandles && context.recentCandles.length > 5 && (
+                      {m.role === "wisp" && m.showChart && (m.chartCandles ?? context.recentCandles) && (m.chartCandles ?? context.recentCandles)!.length > 5 && (
                         <div className="mb-2">
+                          {m.chartSymbol && (
+                            <div className="mb-1.5 px-1 font-mono text-[10px]" style={{ color: "#71717a" }}>
+                              {m.chartSymbol} live candles
+                            </div>
+                          )}
                           <MiniCandleViz
-                            candles={context.recentCandles}
+                            candles={(m.chartCandles ?? context.recentCandles)!}
                             fills={context.paper?.latestFills ?? []}
                             height={150}
                           />
@@ -255,7 +372,7 @@ export function WispTradeChat(props: {
                           color: m.role === "user" ? "#dbeafe" : "#a1a1aa",
                         }}
                       >
-                        {m.text}
+                        {m.role === "wisp" ? <Prose text={m.text} /> : m.text}
                       </div>
                     </div>
                   </div>
@@ -271,6 +388,7 @@ export function WispTradeChat(props: {
                     </div>
                   </div>
                 )}
+                <div ref={endRef} />
               </div>
 
               {/* Input */}
