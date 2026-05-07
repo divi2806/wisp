@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Paperclip, ArrowUp, X, Copy, Check, FileText,
@@ -12,10 +12,120 @@ import WispMascot, { WispMood } from "@/components/WispMascot";
 /* ─────────────────── Types ─────────────────── */
 type Reaction = "up" | "down" | null;
 type AttachedFile = { id: string; name: string; size: string };
+type DashboardVisual =
+  | {
+      kind: "yield-ranking";
+      title: string;
+      source: "DefiLlama";
+      fetchedAt: string;
+      buckets: Array<{
+        label: string;
+        tone: "green" | "cyan" | "amber";
+        pools: Array<{
+          protocol: string;
+          symbol: string;
+          apy: number;
+          tvlUsd: number;
+          riskTier: "lower" | "balanced" | "high";
+          reason: string;
+        }>;
+      }>;
+    }
+  | {
+      kind: "token-snapshot";
+      title: string;
+      source: "Birdeye";
+      tokens: Array<{
+        symbol: string;
+        name: string;
+        priceUsd: number | null;
+        priceChange24hPct: number | null;
+        volume24hUsd: number | null;
+        liquidityUsd: number | null;
+        marketCapUsd: number | null;
+      }>;
+    }
+  | {
+      kind: "wallet-holdings";
+      title: string;
+      source: "Helius/Birdeye";
+      address: string;
+      label: string;
+      totalValueUsd: number | null;
+      nativeSol: { amount: number | null; valueUsd: number | null };
+      tokenCount: number;
+      tokens: Array<{ symbol: string; name: string; amount: number | null; valueUsd: number | null; priceUsd: number | null }>;
+      protocolExposure: Array<{ protocol: string; reason: string; confidence: "low" | "medium" | "high" }>;
+    }
+  | {
+      kind: "token-risk";
+      title: string;
+      source: "Birdeye";
+      symbol: string;
+      name: string;
+      mint: string;
+      score: number;
+      label: "lower" | "medium" | "high" | "unknown";
+      overview: {
+        priceUsd: number | null;
+        priceChange24hPct: number | null;
+        volume24hUsd: number | null;
+        liquidityUsd: number | null;
+        marketCapUsd: number | null;
+        fdvUsd: number | null;
+        holders: number | null;
+      };
+      checks: Array<{ label: string; status: "ok" | "warn" | "danger" | "unknown"; detail: string }>;
+      warnings: string[];
+    }
+  | {
+      kind: "perps-snapshot";
+      title: string;
+      source: "Drift/Jupiter/Flash";
+      venue: string;
+      market: string | null;
+      snapshots: Array<{
+        venue: "drift" | "jupiter" | "flash";
+        market: string;
+        priceUsd: number | null;
+        fundingRate: number | null;
+        openInterestUsd: number | null;
+        volume24hUsd: number | null;
+        longShortSkew: number | null;
+      }>;
+      warnings: string[];
+    }
+  | {
+      kind: "protocol-positions";
+      title: string;
+      source: "Protocol decoders";
+      protocols: Array<{
+        protocol: string;
+        status: "live" | "partial-live" | "market-live" | "needs-decoder" | "not-configured";
+        provider: string;
+        apiKeyRequired: boolean;
+        walletRequirement: "none" | "public-address" | "connected-wallet";
+        detail: string;
+        needs: string[];
+        positions?: Array<{
+          label: string;
+          positionType: "lend" | "perp" | "spot" | "clmm" | "amm" | "vault" | "unknown";
+          suppliedUsd: number | null;
+          borrowedUsd: number | null;
+          netUsd: number | null;
+          health: "no-borrow" | "lower-risk" | "watch" | "danger" | "unknown";
+          deposits: Array<{ symbol: string; valueUsd: number | null; apy: number | null; amount?: number | null }>;
+          borrows: Array<{ symbol: string; valueUsd: number | null; apy: number | null; amount?: number | null }>;
+          metrics: Array<{ label: string; value: string; tone?: "neutral" | "good" | "warn" | "danger" }>;
+        }>;
+      }>;
+      warnings: string[];
+    };
 type Message = {
   id: string;
   role: "user" | "wisp";
   content: string;
+  visuals?: DashboardVisual[];
   files?: AttachedFile[];
   timestamp: Date;
   reaction?: Reaction;
@@ -24,33 +134,12 @@ type Message = {
 
 /* ─────────────────── Data ─────────────────── */
 const SUGGESTIONS = [
-  { label: "Liquidation risk", prompt: "Which positions are closest to liquidation?" },
-  { label: "Best APY",         prompt: "Where am I earning the best APY today?" },
-  { label: "SOL -20%",         prompt: "If SOL drops 20%, what’s the damage?" },
-  { label: "Rebalance",        prompt: "Should I rebalance Kamino vs Jupiter?" },
+  { label: "Best yields",      prompt: "Show the best Solana yield options by risk bucket right now." },
+  { label: "Wallet lookup",    prompt: "What does toly.sol hold? Show public wallet holdings and risks." },
+  { label: "Token risk",       prompt: "Analyze JUP: is it a clean setup or risky to buy?" },
+  { label: "Perps",            prompt: "Show SOL perps funding, open interest, and risk context." },
+  { label: "Protocol positions", prompt: "What protocol position APIs do we support for Kamino, Drift, MarginFi, Meteora, Orca and Raydium?" },
 ];
-
-const RESPONSES: Record<string, string> = {
-  liquidation:
-    "Based on your current positions, your **Drift SOL ×3 Perp** is the most at-risk — currently **68% toward liquidation**.\n\nTo stay safe, consider one of these moves:\n- Add ~$340 in margin to that position\n- Reduce position size by 25%\n\nYour Kamino, Jupiter, and Marinade positions all have comfortable buffers above their liquidation thresholds right now.",
-  apy:
-    "Right now **Jupiter SOL-USDC LP** is your top performer at **38.7% APY**. Your Kamino USDC Vault is at 12.4% — that's dropped 2.1% in the last 24h.\n\nThree alternatives worth considering:\n- **Orca SOL-USDC** — 41.2% APY\n- **Marginfi USDC** — 14.8% APY\n- **Kamino JitoSOL** — 16.3% APY",
-  sol:
-    "If SOL dropped 20% from current prices:\n\n- **Drift SOL ×3 Perp** → liquidated immediately\n- **Jupiter SOL-USDC LP** → ~$1,840 loss (22% IL exposure)\n- **Marinade mSOL** → drops proportionally with SOL\n\nTotal estimated impact: **-$4,120 (-19.4%)**. Your Drift position is the biggest risk here — consider hedging before this scenario plays out.",
-  rebalance:
-    "Your Kamino–Jupiter allocation looks solid overall, but I'd trim the **Drift ×3 perp** — it's your highest risk at 68% liquidation proximity.\n\nRotating 50% of that into Jupiter SOL-USDC LP would maintain upside exposure while significantly reducing liquidation risk.\n\nWant me to run a backtest on that reallocation?",
-  default:
-    "Connect your wallet and I'll give you real, specific insights about your live positions across Kamino, Jupiter, Drift and more.\n\nFor now I'm running on demo data — but the analysis you'll get will look a lot like this. Try one of the suggested questions above to see a preview.",
-};
-
-function getResponse(msg: string) {
-  const l = msg.toLowerCase();
-  if (l.includes("liquidat")) return RESPONSES.liquidation;
-  if (l.includes("apy") || l.includes("yield") || l.includes("best")) return RESPONSES.apy;
-  if (l.includes("drop") || l.includes("20%") || l.includes("scenario")) return RESPONSES.sol;
-  if (l.includes("rebalanc") || l.includes("kamino") || l.includes("jupiter")) return RESPONSES.rebalance;
-  return RESPONSES.default;
-}
 
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`;
@@ -58,56 +147,650 @@ function fmtBytes(b: number) {
   return `${(b / 1048576).toFixed(1)} MB`;
 }
 
+function toApiHistory(messages: Message[]) {
+  return messages
+    .slice(-12)
+    .filter((m) => m.content.trim().length > 0)
+    .map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+}
+
+async function requestWispReply(args: {
+  message: string;
+  history: Message[];
+  files?: AttachedFile[];
+}) {
+  const res = await fetch("/api/ai/wisp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      surface: "dashboard",
+      message: args.message,
+      history: toApiHistory(args.history),
+      files: args.files ?? [],
+    }),
+  });
+
+  const json = (await res.json()) as { reply?: string; visuals?: DashboardVisual[]; error?: string };
+  if (!res.ok) throw new Error(json.error ?? "Wisp is offline.");
+  return {
+    reply: (json.reply ?? "").trim() || "I blanked for a second. Ask me again?",
+    visuals: json.visuals ?? [],
+  };
+}
+
 /* ─────────────────── Prose renderer ─────────────────── */
+function renderInline(text: string) {
+  return text.split(/(\*\*[^*]+?\*\*|`[^`]+?`)/g).map((chunk, ci) => {
+    if (chunk.startsWith("**") && chunk.endsWith("**")) {
+      return (
+        <strong key={ci} style={{ color: "#e4e4e7", fontWeight: 700 }}>
+          {chunk.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (chunk.startsWith("`") && chunk.endsWith("`")) {
+      return (
+        <code
+          key={ci}
+          className="font-mono rounded-md px-1 py-0.5"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#c4b5fd", fontSize: "0.92em" }}
+        >
+          {chunk.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return <span key={ci}>{chunk.replace(/\*\*/g, "").replace(/`/g, "")}</span>;
+  });
+}
+
 function Prose({ text }: { text: string }) {
   return (
-    <>
-      {text.split("\n").map((line, li, arr) => (
-        <span key={li}>
-          {line.split(/(\*\*[^*]+\*\*)/).map((chunk, ci) =>
-            chunk.startsWith("**") && chunk.endsWith("**") ? (
-              <strong key={ci} style={{ color: "#e4e4e7", fontWeight: 700 }}>
-                {chunk.slice(2, -2)}
-              </strong>
-            ) : (
-              <span key={ci}>{chunk}</span>
-            )
-          )}
-          {li < arr.length - 1 && <br />}
+    <div className="space-y-1.5">
+      {text.split("\n").map((line, li) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={li} className="h-1" />;
+
+        const heading = /^#{1,6}\s+(.+)$/.exec(trimmed);
+        if (heading) {
+          return (
+            <p key={li} className="font-semibold" style={{ color: "#e4e4e7" }}>
+              {renderInline(heading[1])}
+            </p>
+          );
+        }
+
+        const bullet = /^[-*]\s+(.+)$/.exec(trimmed);
+        if (bullet) {
+          return (
+            <div key={li} className="flex gap-2">
+              <span style={{ color: "#71717a" }}>•</span>
+              <span>{renderInline(bullet[1])}</span>
+            </div>
+          );
+        }
+
+        const numbered = /^(\d+)[.)]\s+(.+)$/.exec(trimmed);
+        if (numbered) {
+          return (
+            <div key={li} className="flex gap-2">
+              <span className="font-mono" style={{ color: "#71717a" }}>
+                {numbered[1]}.
+              </span>
+              <span>{renderInline(numbered[2])}</span>
+            </div>
+          );
+        }
+
+        if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+          return (
+            <div key={li} className="font-mono overflow-x-auto whitespace-pre" style={{ color: "#a1a1aa", fontSize: 12 }}>
+              {trimmed}
+            </div>
+          );
+        }
+
+        return <p key={li}>{renderInline(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
+function fmtUsd(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "--";
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toFixed(value < 1 ? 4 : 2)}`;
+}
+
+function fmtPct(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "--";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function fmtCount(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "--";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return Math.round(value).toLocaleString();
+}
+
+function toneColor(tone: "green" | "cyan" | "amber") {
+  if (tone === "green") return "#22c55e";
+  if (tone === "cyan") return "#38bdf8";
+  return "#f59e0b";
+}
+
+function DashboardVisuals({ visuals }: { visuals?: DashboardVisual[] }) {
+  if (!visuals?.length) return null;
+
+  return (
+    <div className="mt-4 space-y-3">
+      {visuals.map((visual, idx) => {
+        if (visual.kind === "yield-ranking") return <YieldRankingVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+        if (visual.kind === "token-snapshot") return <TokenSnapshotVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+        if (visual.kind === "wallet-holdings") return <WalletHoldingsVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+        if (visual.kind === "token-risk") return <TokenRiskVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+        if (visual.kind === "perps-snapshot") return <PerpsVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+        return <ProtocolPositionsVisual key={`${visual.kind}-${idx}`} visual={visual} />;
+      })}
+    </div>
+  );
+}
+
+function YieldRankingVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "yield-ranking" }> }) {
+  const maxApy = Math.max(
+    1,
+    ...visual.buckets.flatMap((bucket) => bucket.pools.map((pool) => pool.apy))
+  );
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div>
+          <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+          <p className="font-mono" style={{ color: "#52525b", fontSize: 10 }}>
+            {visual.source} yield pools
+          </p>
+        </div>
+        <span className="font-mono" style={{ color: "#71717a", fontSize: 10 }}>
+          {new Date(visual.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
-      ))}
-    </>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {visual.buckets.map((bucket) => {
+          const color = toneColor(bucket.tone);
+          return (
+            <div key={bucket.label}>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                <span className="font-semibold" style={{ color: "#a1a1aa", fontSize: 11 }}>{bucket.label}</span>
+              </div>
+              <div className="space-y-2">
+                {bucket.pools.map((pool) => {
+                  const width = `${Math.max(8, Math.min(100, (pool.apy / maxApy) * 100))}%`;
+                  return (
+                    <div
+                      key={`${bucket.label}-${pool.protocol}-${pool.symbol}`}
+                      className="rounded-xl p-3"
+                      style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>
+                            {pool.protocol} <span style={{ color: "#71717a" }}>-</span> {pool.symbol}
+                          </p>
+                          <p className="truncate" style={{ color: "#52525b", fontSize: 10 }}>{pool.reason}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-mono" style={{ color, fontSize: 13, fontWeight: 700 }}>{pool.apy.toFixed(2)}%</p>
+                          <p className="font-mono" style={{ color: "#71717a", fontSize: 10 }}>{fmtUsd(pool.tvlUsd)} TVL</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div className="h-full rounded-full" style={{ width, background: color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TokenSnapshotVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "token-snapshot" }> }) {
+  return (
+    <div
+      className="rounded-2xl p-3"
+      style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+        <span className="font-mono" style={{ color: "#52525b", fontSize: 10 }}>{visual.source}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {visual.tokens.map((token) => {
+          const changeColor = (token.priceChange24hPct ?? 0) >= 0 ? "#22c55e" : "#f87171";
+          return (
+            <div
+              key={token.symbol}
+              className="rounded-xl p-3"
+              style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{token.symbol}</p>
+                  <p className="truncate" style={{ color: "#52525b", fontSize: 10 }}>{token.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono" style={{ color: "#a78bfa", fontSize: 12 }}>{fmtUsd(token.priceUsd)}</p>
+                  <p className="font-mono" style={{ color: changeColor, fontSize: 10 }}>{fmtPct(token.priceChange24hPct)}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 font-mono" style={{ fontSize: 10 }}>
+                <span style={{ color: "#71717a" }}>Vol {fmtUsd(token.volume24hUsd)}</span>
+                <span style={{ color: "#71717a" }}>Liq {fmtUsd(token.liquidityUsd)}</span>
+                <span style={{ color: "#71717a" }}>MC {fmtUsd(token.marketCapUsd)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WalletHoldingsVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "wallet-holdings" }> }) {
+  const maxValue = Math.max(1, ...visual.tokens.map((token) => token.valueUsd ?? 0), visual.nativeSol.valueUsd ?? 0);
+
+  return (
+    <div className="rounded-2xl p-3" style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+          <p className="font-mono truncate" style={{ color: "#52525b", fontSize: 10 }}>{visual.label} - {visual.address}</p>
+        </div>
+        <div className="text-right">
+          <p className="font-mono" style={{ color: "#22c55e", fontSize: 13, fontWeight: 700 }}>{fmtUsd(visual.totalValueUsd)}</p>
+          <p className="font-mono" style={{ color: "#71717a", fontSize: 10 }}>{visual.tokenCount} tokens</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <HoldingRow
+          label="SOL"
+          subtitle={`${(visual.nativeSol.amount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`}
+          value={visual.nativeSol.valueUsd}
+          maxValue={maxValue}
+          color="#a78bfa"
+        />
+        {visual.tokens.slice(0, 7).map((token) => (
+          <HoldingRow
+            key={`${token.symbol}-${token.name}`}
+            label={token.symbol}
+            subtitle={`${token.name} ${token.amount === null ? "" : token.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}`}
+            value={token.valueUsd}
+            maxValue={maxValue}
+            color="#38bdf8"
+          />
+        ))}
+      </div>
+
+      {visual.protocolExposure.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {visual.protocolExposure.map((item) => (
+            <span key={item.protocol} className="rounded-full px-2 py-1" style={{ background: "rgba(167,139,250,0.1)", color: "#c4b5fd", fontSize: 10 }}>
+              {item.protocol}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HoldingRow(props: { label: string; subtitle: string; value: number | null; maxValue: number; color: string }) {
+  const width = `${Math.max(5, Math.min(100, ((props.value ?? 0) / props.maxValue) * 100))}%`;
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold" style={{ color: "#e4e4e7", fontSize: 11 }}>{props.label}</p>
+          <p className="truncate" style={{ color: "#52525b", fontSize: 10 }}>{props.subtitle}</p>
+        </div>
+        <span className="font-mono" style={{ color: "#a1a1aa", fontSize: 11 }}>{fmtUsd(props.value)}</span>
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <div className="h-full rounded-full" style={{ width, background: props.color }} />
+      </div>
+    </div>
+  );
+}
+
+function riskColor(status: "ok" | "warn" | "danger" | "unknown") {
+  if (status === "ok") return "#22c55e";
+  if (status === "warn") return "#f59e0b";
+  if (status === "danger") return "#f87171";
+  return "#71717a";
+}
+
+function TokenRiskVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "token-risk" }> }) {
+  const scoreColor = visual.score >= 78 ? "#22c55e" : visual.score >= 55 ? "#f59e0b" : "#f87171";
+
+  return (
+    <div className="rounded-2xl p-3" style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+          <p className="font-mono" style={{ color: "#52525b", fontSize: 10 }}>{visual.symbol} - {visual.name}</p>
+        </div>
+        <div className="text-right">
+          <p className="font-mono" style={{ color: scoreColor, fontSize: 18, fontWeight: 800 }}>{visual.score}</p>
+          <p className="font-mono uppercase" style={{ color: "#71717a", fontSize: 10 }}>{visual.label} risk</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+        <Metric label="Price" value={fmtUsd(visual.overview.priceUsd)} />
+        <Metric label="24h" value={fmtPct(visual.overview.priceChange24hPct)} />
+        <Metric label="Liquidity" value={fmtUsd(visual.overview.liquidityUsd)} />
+        <Metric label="MCap" value={fmtUsd(visual.overview.marketCapUsd)} />
+        <Metric label="FDV" value={fmtUsd(visual.overview.fdvUsd)} />
+        <Metric label="Holders" value={fmtCount(visual.overview.holders)} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {visual.checks.map((check) => (
+          <div key={check.label} className="rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full" style={{ background: riskColor(check.status) }} />
+              <span className="font-semibold" style={{ color: "#e4e4e7", fontSize: 11 }}>{check.label}</span>
+            </div>
+            <p style={{ color: "#71717a", fontSize: 10, lineHeight: 1.45 }}>{check.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      {visual.warnings.length > 0 && (
+        <div className="mt-2 rounded-xl p-2.5" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.18)" }}>
+          <p className="font-semibold" style={{ color: "#fbbf24", fontSize: 10 }}>Partial Birdeye coverage</p>
+          <p className="mt-1" style={{ color: "#a1a1aa", fontSize: 10, lineHeight: 1.45 }}>
+            {visual.warnings.slice(0, 2).join(" | ")}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl px-2.5 py-2" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <p className="font-mono" style={{ color: "#52525b", fontSize: 9 }}>{label}</p>
+      <p className="font-mono truncate" style={{ color: "#a1a1aa", fontSize: 11 }}>{value}</p>
+    </div>
+  );
+}
+
+function PerpsVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "perps-snapshot" }> }) {
+  return (
+    <div className="rounded-2xl p-3" style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+          <p className="font-mono" style={{ color: "#52525b", fontSize: 10 }}>{visual.venue} {visual.market ?? "markets"}</p>
+        </div>
+        <span className="font-mono" style={{ color: "#71717a", fontSize: 10 }}>{visual.source}</span>
+      </div>
+      {visual.snapshots.length > 0 ? (
+        <div className="space-y-2">
+          {visual.snapshots.map((item) => (
+            <div key={`${item.venue}-${item.market}`} className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <Metric label="Market" value={item.market} />
+              <Metric label="Price" value={fmtUsd(item.priceUsd)} />
+              <Metric label="Funding" value={fmtPct(item.fundingRate)} />
+              <Metric label="OI" value={fmtUsd(item.openInterestUsd)} />
+              <Metric label="24h Vol" value={fmtUsd(item.volume24hUsd)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ color: "#71717a", fontSize: 11 }}>Live perps snapshot not available from the configured endpoint yet.</p>
+      )}
+      {visual.warnings.length > 0 && (
+        <p className="mt-2" style={{ color: "#f59e0b", fontSize: 10 }}>{visual.warnings[0]}</p>
+      )}
+    </div>
+  );
+}
+
+function protocolStatusColor(status: Extract<DashboardVisual, { kind: "protocol-positions" }>["protocols"][number]["status"]) {
+  if (status === "live") return "#22c55e";
+  if (status === "partial-live" || status === "market-live") return "#38bdf8";
+  if (status === "needs-decoder") return "#f59e0b";
+  return "#71717a";
+}
+
+function healthColor(health: "no-borrow" | "lower-risk" | "watch" | "danger" | "unknown") {
+  if (health === "no-borrow" || health === "lower-risk") return "#22c55e";
+  if (health === "watch") return "#f59e0b";
+  if (health === "danger") return "#f87171";
+  return "#71717a";
+}
+
+function protocolMetricColor(tone: "neutral" | "good" | "warn" | "danger" | undefined) {
+  if (tone === "good") return "#86efac";
+  if (tone === "warn") return "#facc15";
+  if (tone === "danger") return "#fca5a5";
+  return "#d4d4d8";
+}
+
+function ProtocolPositionsVisual({ visual }: { visual: Extract<DashboardVisual, { kind: "protocol-positions" }> }) {
+  return (
+    <div className="rounded-2xl p-3" style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="font-semibold" style={{ color: "#e4e4e7", fontSize: 12 }}>{visual.title}</p>
+        <span className="font-mono" style={{ color: "#52525b", fontSize: 10 }}>{visual.source}</span>
+      </div>
+      <div className="space-y-2">
+        {visual.protocols.map((item) => (
+          <div key={`${item.protocol}-${item.status}`} className="rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="font-semibold" style={{ color: "#e4e4e7", fontSize: 11 }}>{item.protocol}</span>
+              <span className="font-mono" style={{ color: protocolStatusColor(item.status), fontSize: 9 }}>{item.status}</span>
+            </div>
+            <div className="mb-1 flex flex-wrap gap-1.5">
+              <span className="rounded-full px-2 py-0.5 font-mono" style={{ background: "rgba(255,255,255,0.04)", color: "#71717a", fontSize: 9 }}>
+                {item.apiKeyRequired ? "key needed" : "no extra key"}
+              </span>
+              <span className="rounded-full px-2 py-0.5 font-mono" style={{ background: "rgba(255,255,255,0.04)", color: "#71717a", fontSize: 9 }}>
+                {item.walletRequirement}
+              </span>
+            </div>
+            <p style={{ color: "#71717a", fontSize: 10, lineHeight: 1.45 }}>{item.detail}</p>
+            <p className="mt-1 font-mono truncate" style={{ color: "#52525b", fontSize: 9 }}>{item.provider}</p>
+            {item.positions && item.positions.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {item.positions.slice(0, 3).map((position) => (
+                  <div key={position.label} className="rounded-lg p-2" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="block font-mono truncate" style={{ color: "#a1a1aa", fontSize: 9 }}>{position.label}</span>
+                        <span className="font-mono" style={{ color: "#52525b", fontSize: 8 }}>{position.positionType}</span>
+                      </div>
+                      <span className="shrink-0 font-mono" style={{ color: healthColor(position.health), fontSize: 9 }}>{position.health}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Metric label="Supplied" value={fmtUsd(position.suppliedUsd)} />
+                      <Metric label="Borrowed" value={fmtUsd(position.borrowedUsd)} />
+                      <Metric label="Net" value={fmtUsd(position.netUsd)} />
+                    </div>
+                    {position.metrics.length > 0 && (
+                      <div className="mt-2 grid grid-cols-2 gap-1.5">
+                        {position.metrics.slice(0, 8).map((metric, index) => (
+                          <div key={`${metric.label}-${index}`} className="rounded-md px-2 py-1" style={{ background: "rgba(255,255,255,0.035)" }}>
+                            <p className="font-mono uppercase" style={{ color: "#52525b", fontSize: 8 }}>{metric.label}</p>
+                            <p className="font-mono truncate" style={{ color: protocolMetricColor(metric.tone), fontSize: 9 }}>{metric.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(position.deposits.length > 0 || position.borrows.length > 0) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {position.deposits.map((leg) => (
+                          <span key={`d-${leg.symbol}-${leg.valueUsd}`} className="rounded-full px-2 py-0.5" style={{ background: "rgba(34,197,94,0.08)", color: "#86efac", fontSize: 9 }}>
+                            +{leg.symbol} {fmtUsd(leg.valueUsd)}
+                          </span>
+                        ))}
+                        {position.borrows.map((leg) => (
+                          <span key={`b-${leg.symbol}-${leg.valueUsd}`} className="rounded-full px-2 py-0.5" style={{ background: "rgba(248,113,113,0.08)", color: "#fca5a5", fontSize: 9 }}>
+                            -{leg.symbol} {fmtUsd(leg.valueUsd)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {item.needs.length > 0 && (
+              <p className="mt-1" style={{ color: "#52525b", fontSize: 10 }}>
+                Needs: {item.needs.slice(0, 2).join(" · ")}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      {visual.warnings.length > 0 && (
+        <p className="mt-2" style={{ color: "#f59e0b", fontSize: 10 }}>{visual.warnings[0]}</p>
+      )}
+    </div>
   );
 }
 
 /* ─────────────────── Typewriter ─────────────────── */
-function TypewriterText({ text, onComplete }: { text: string; onComplete: () => void }) {
+function TypewriterText({ text, onComplete, onTick }: { text: string; onComplete: () => void; onTick?: () => void }) {
   const [idx, setIdx] = useState(0);
   const [done, setDone] = useState(false);
   const cbRef = useRef(onComplete);
+  const tickRef = useRef(onTick);
+  const frameRef = useRef<number | null>(null);
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     cbRef.current = onComplete;
   }, [onComplete]);
 
   useEffect(() => {
-    let i = 0;
+    tickRef.current = onTick;
+  }, [onTick]);
 
-    const tick = () => {
-      if (i >= text.length) {
-        setDone(true);
-        cbRef.current();
-        return;
-      }
-      // slightly variable chunk size for organic feel
-      const chunk = Math.min(i < 60 ? 2 : 3, text.length - i);
-      i += chunk;
-      setIdx(i);
-      setTimeout(tick, i < 60 ? 22 : 14);
+  useEffect(() => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    if (startTimerRef.current !== null) clearTimeout(startTimerRef.current);
+
+    if (!text.length) {
+      setIdx(0);
+      setDone(true);
+      cbRef.current();
+      return;
+    }
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) {
+      setIdx(text.length);
+      setDone(true);
+      cbRef.current();
+      return;
+    }
+
+    let visibleIndex = 0;
+    let lastTime = 0;
+    let carry = 0;
+    let pauseUntil = 0;
+    let completed = false;
+    const charsPerMs = 0.052;
+
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      setDone(true);
+      cbRef.current();
     };
 
-    const t = setTimeout(tick, 120);
-    return () => clearTimeout(t);
+    const punctuationPause = (char: string) => {
+      if (char === "\n") return 120;
+      if (/[.!?]/.test(char)) return 130;
+      if (/[,;:]/.test(char)) return 60;
+      return 0;
+    };
+
+    const step = (time: number) => {
+      if (completed) return;
+      if (!lastTime) lastTime = time;
+
+      if (time < pauseUntil) {
+        frameRef.current = requestAnimationFrame(step);
+        return;
+      }
+
+      const elapsed = Math.min(time - lastTime, 80);
+      lastTime = time;
+      carry += elapsed * charsPerMs;
+
+      let nextIndex = visibleIndex;
+      while (carry >= 1 && nextIndex < text.length) {
+        nextIndex += 1;
+        carry -= 1;
+
+        const pause = punctuationPause(text[nextIndex - 1]);
+        if (pause > 0) {
+          pauseUntil = time + pause;
+          break;
+        }
+      }
+
+      if (nextIndex !== visibleIndex) {
+        visibleIndex = nextIndex;
+        setIdx(visibleIndex);
+        tickRef.current?.();
+      }
+
+      if (visibleIndex >= text.length) {
+        setDone(true);
+        finish();
+        return;
+      }
+
+      frameRef.current = requestAnimationFrame(step);
+    };
+
+    setIdx(0);
+    setDone(false);
+    startTimerRef.current = setTimeout(() => {
+      frameRef.current = requestAnimationFrame(step);
+    }, 220);
+
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      if (startTimerRef.current !== null) clearTimeout(startTimerRef.current);
+    };
   }, [text]);
 
   return (
@@ -128,16 +811,66 @@ function TypewriterText({ text, onComplete }: { text: string; onComplete: () => 
 /* ─────────────────── Typing dots ─────────────────── */
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1.5 py-1">
+    <div className="flex items-center gap-1.5 py-1" aria-hidden="true">
       {[0, 1, 2].map((i) => (
         <motion.div
           key={i}
           className="w-1.5 h-1.5 rounded-full"
-          style={{ background: "#3f3f46" }}
-          animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }}
-          transition={{ duration: 0.65, repeat: Infinity, delay: i * 0.13 }}
+          style={{ background: i === 1 ? "#a78bfa" : "#7c3aed" }}
+          animate={{ y: [0, -6, 0], scale: [0.82, 1.12, 0.82], opacity: [0.35, 1, 0.35] }}
+          transition={{ duration: 0.72, repeat: Infinity, delay: i * 0.14, ease: "easeInOut" }}
         />
       ))}
+    </div>
+  );
+}
+
+const THINKING_STEPS = [
+  "Reading your question",
+  "Checking live Solana data",
+  "Analyzing risk and context",
+  "Preparing the answer",
+];
+
+function ThinkingBubble() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const elapsed = Date.now() - started;
+      setStep(Math.min(THINKING_STEPS.length - 1, Math.floor(elapsed / 2400)));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "rgba(13,16,32,0.78)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="font-semibold" style={{ color: "#a78bfa", fontSize: 12 }}>Wisp is thinking</span>
+        <TypingDots />
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={THINKING_STEPS[step]}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.2 }}
+          className="mb-2"
+          style={{ color: "#71717a", fontSize: 11, lineHeight: 1.45 }}
+        >
+          {THINKING_STEPS[step]}
+        </motion.p>
+      </AnimatePresence>
+      <div className="h-1 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ width: "38%", background: "linear-gradient(90deg, transparent, #a78bfa, transparent)" }}
+          animate={{ x: ["-120%", "280%"] }}
+          transition={{ duration: 1.25, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
     </div>
   );
 }
@@ -168,12 +901,7 @@ function CopyBtn({ text }: { text: string }) {
 type AnyRec = any;
 function useVoice(onTranscript: (t: string, final: boolean) => void) {
   const [listening, setListening] = useState(false);
-  const supported = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    return Boolean(SR);
-  }, []);
+  const [supported, setSupported] = useState(false);
   const recRef = useRef<AnyRec>(null);
   const cbRef  = useRef(onTranscript);
 
@@ -186,6 +914,10 @@ function useVoice(onTranscript: (t: string, final: boolean) => void) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setSupported(true);
+    });
     const r: AnyRec = new SR();
     r.continuous      = false;
     r.interimResults  = true;
@@ -197,7 +929,10 @@ function useVoice(onTranscript: (t: string, final: boolean) => void) {
     r.onerror = () => setListening(false);
     r.onend   = () => setListening(false);
     recRef.current = r;
-    return () => r.abort();
+    return () => {
+      active = false;
+      r.abort();
+    };
   }, []);
 
   const start = useCallback(() => { recRef.current?.start(); setListening(true); }, []);
@@ -222,6 +957,7 @@ export default function ChatPage() {
   const scrollRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef     = useRef<HTMLInputElement>(null);
+  const stickToBottomRef = useRef(true);
 
   /* voice */
   const voice = useVoice((t, final) => {
@@ -230,12 +966,12 @@ export default function ChatPage() {
   });
 
   /* scroll to bottom */
-  const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    endRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
   useEffect(() => {
-    if (!streaming) scrollToBottom();
+    if (stickToBottomRef.current) scrollToBottom(streaming ? "auto" : "smooth");
   }, [messages, loading, streaming, scrollToBottom]);
 
   /* scroll-down button visibility */
@@ -245,8 +981,10 @@ export default function ChatPage() {
     const check = () => {
       const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
       setShowDown(dist > 120);
+      stickToBottomRef.current = dist < 160;
     };
     el.addEventListener("scroll", check);
+    check();
     return () => el.removeEventListener("scroll", check);
   }, []);
 
@@ -264,35 +1002,63 @@ export default function ChatPage() {
     if (!trimmed && files.length === 0) return;
     if (loading) return;
 
+    const attachedFiles = files.length ? [...files] : [];
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
-      files: files.length ? [...files] : undefined,
+      files: attachedFiles.length ? attachedFiles : undefined,
       timestamp: new Date(),
     };
 
+    const history = [...messages, userMsg];
     setMessages((p) => [...p, userMsg]);
     setInput("");
     setFiles([]);
     setLoading(true);
     setMood("thinking");
+    stickToBottomRef.current = true;
+    requestAnimationFrame(() => scrollToBottom("smooth"));
 
-    await new Promise((r) => setTimeout(r, 900 + Math.random() * 600));
+    try {
+      const result = await requestWispReply({
+        message: trimmed,
+        history,
+        files: attachedFiles,
+      });
+      const id = crypto.randomUUID();
+      const wispMsg: Message = {
+        id,
+        role: "wisp",
+        content: result.reply,
+        visuals: result.visuals,
+        timestamp: new Date(),
+        streaming: true,
+      };
 
-    const id = crypto.randomUUID();
-    const wispMsg: Message = {
-      id,
-      role: "wisp",
-      content: getResponse(trimmed),
-      timestamp: new Date(),
-      streaming: true,
-    };
-
-    setMessages((p) => [...p, wispMsg]);
-    setLoading(false);
-    setStreaming(id);
-    setMood("happy");
+      setMessages((p) => [...p, wispMsg]);
+      setStreaming(id);
+      setMood("happy");
+    } catch (err) {
+      const id = crypto.randomUUID();
+      setMessages((p) => [
+        ...p,
+        {
+          id,
+          role: "wisp",
+          content:
+            err instanceof Error
+              ? `I couldn't reach Azure OpenAI: **${err.message}**`
+              : "I couldn't reach Azure OpenAI. Try again in a bit.",
+          timestamp: new Date(),
+          streaming: true,
+        },
+      ]);
+      setStreaming(id);
+      setMood("dead");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const onStreamDone = useCallback((id: string) => {
@@ -305,22 +1071,43 @@ export default function ChatPage() {
   const regenerate = async () => {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser || loading || streaming) return;
-    setMessages((p) => p.filter((m) => {
-      const idx = p.indexOf(m);
-      const lastWispIdx = p.map((x, i) => x.role === "wisp" ? i : -1).filter((i) => i >= 0).pop() ?? -1;
-      return idx !== lastWispIdx;
-    }));
+    const lastWispIdx = messages.map((m, i) => (m.role === "wisp" ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
+    const history = lastWispIdx >= 0 ? messages.filter((_, i) => i !== lastWispIdx) : messages;
+    setMessages(history);
     setLoading(true);
     setMood("thinking");
-    await new Promise((r) => setTimeout(r, 900 + Math.random() * 500));
-    const id = crypto.randomUUID();
-    setMessages((p) => [...p, {
-      id, role: "wisp", content: getResponse(lastUser.content),
-      timestamp: new Date(), streaming: true,
-    }]);
-    setLoading(false);
-    setStreaming(id);
-    setMood("happy");
+    stickToBottomRef.current = true;
+    requestAnimationFrame(() => scrollToBottom("smooth"));
+    try {
+      const result = await requestWispReply({
+        message: lastUser.content,
+        history,
+        files: lastUser.files ?? [],
+      });
+      const id = crypto.randomUUID();
+      setMessages((p) => [...p, {
+        id, role: "wisp", content: result.reply, visuals: result.visuals,
+        timestamp: new Date(), streaming: true,
+      }]);
+      setStreaming(id);
+      setMood("happy");
+    } catch (err) {
+      const id = crypto.randomUUID();
+      setMessages((p) => [...p, {
+        id,
+        role: "wisp",
+        content:
+          err instanceof Error
+            ? `I couldn't reach Azure OpenAI: **${err.message}**`
+            : "I couldn't reach Azure OpenAI. Try again in a bit.",
+        timestamp: new Date(),
+        streaming: true,
+      }]);
+      setStreaming(id);
+      setMood("dead");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* ── Reaction ── */
@@ -342,9 +1129,19 @@ export default function ChatPage() {
   const clearChat = () => { setMessages([]); setStreaming(null); setLoading(false); setMood("mischief"); };
   const canSend = (input.trim().length > 0 || files.length > 0) && !loading && !streaming;
   const lastWispId = [...messages].reverse().find((m) => m.role === "wisp")?.id;
+  const handleChatWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const canScroll = el.scrollHeight > el.clientHeight;
+    if (!canScroll) return;
+
+    event.stopPropagation();
+    stickToBottomRef.current = false;
+  }, []);
 
   return (
-    <div className="flex flex-col" style={{ height: "100vh", background: "#080b14", overflow: "hidden" }}>
+    <div className="flex min-h-0 flex-col" style={{ height: "100dvh", background: "#080b14", overflow: "hidden" }}>
 
       {/* ══ Top bar ══ */}
       <div
@@ -392,7 +1189,14 @@ export default function ChatPage() {
       </div>
 
       {/* ══ Messages ══ */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 relative" style={{ scrollbarWidth: "thin" }}>
+      <div
+        ref={scrollRef}
+        data-native-scroll
+        data-lenis-prevent-wheel
+        onWheelCapture={handleChatWheel}
+        className="relative min-h-0 flex-1 overflow-y-scroll overscroll-contain"
+        style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+      >
 
         {/* Scroll-to-bottom button */}
         <AnimatePresence>
@@ -404,7 +1208,10 @@ export default function ChatPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 8 }}
               whileHover={{ background: "#22263a", color: "#e4e4e7" }}
-              onClick={scrollToBottom}
+              onClick={() => {
+                stickToBottomRef.current = true;
+                scrollToBottom("smooth");
+              }}
             >
               <ChevronDown size={15} />
             </motion.button>
@@ -414,19 +1221,22 @@ export default function ChatPage() {
         {/* ── Empty state ── */}
         {messages.length === 0 && !loading ? (
           <motion.div
-            className="flex flex-col items-center justify-center px-6 pb-4 text-center"
-            style={{ minHeight: "100%" }}
+            className="flex min-h-full flex-col items-center px-4 text-center sm:px-6"
+            style={{
+              paddingTop: "clamp(22px, 4vh, 38px)",
+              paddingBottom: 36,
+            }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div style={{ width: 100, height: 125, flexShrink: 0, position: "relative" }}>
-              <WispMascot size={100} mood="mischief" quote="ask me anything 👀" />
+            <div style={{ width: 84, height: 128, flexShrink: 0, position: "relative", paddingTop: 24, overflow: "visible" }}>
+              <WispMascot size={84} mood="mischief" quote="ask me anything 👀" />
             </div>
 
             <motion.h2
               className="font-extrabold tracking-tight"
-              style={{ fontSize: 24, color: "#fafafa", marginTop: 12, marginBottom: 8 }}
+              style={{ fontSize: 23, color: "#fafafa", marginTop: 0, marginBottom: 6 }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
@@ -434,19 +1244,19 @@ export default function ChatPage() {
               How can I help?
             </motion.h2>
             <motion.p
-              style={{ fontSize: 14, color: "#52525b", maxWidth: 360, lineHeight: 1.75, marginBottom: 28 }}
+              style={{ fontSize: 13, color: "#52525b", maxWidth: 360, lineHeight: 1.55, marginBottom: 16 }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.22 }}
             >
-              Ask me anything about your Solana DeFi portfolio — liquidation risks, APY optimization, what-if scenarios.
+              Ask about Solana yields, public wallets, token risk, perps, and protocol exposure.
             </motion.p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+            <div className="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map((s, i) => (
                 <motion.button
                   key={s.label}
-                  className="text-left px-3.5 py-3 rounded-2xl"
+                  className="text-left px-3.5 py-2.5 rounded-xl"
                   style={{ background: "#0d1020", border: "1px solid rgba(255,255,255,0.06)" }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -466,7 +1276,7 @@ export default function ChatPage() {
           /* ── Message list ── */
           <div className="px-4 md:px-6 py-6 max-w-3xl mx-auto w-full space-y-7">
             <AnimatePresence initial={false}>
-              {messages.map((msg, idx) => (
+              {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 14 }}
@@ -519,11 +1329,18 @@ export default function ChatPage() {
 
                         <div className="text-sm leading-[1.8]" style={{ color: "#a1a1aa" }}>
                           {msg.streaming && streaming === msg.id ? (
-                            <TypewriterText text={msg.content} onComplete={() => onStreamDone(msg.id)} />
+                            <TypewriterText
+                              text={msg.content}
+                              onComplete={() => onStreamDone(msg.id)}
+                              onTick={() => {
+                                if (stickToBottomRef.current) scrollToBottom("auto");
+                              }}
+                            />
                           ) : (
                             <Prose text={msg.content} />
                           )}
                         </div>
+                        {!msg.streaming && <DashboardVisuals visuals={msg.visuals} />}
 
                         {/* Message actions — show after streaming done */}
                         {!msg.streaming && (
@@ -588,7 +1405,9 @@ export default function ChatPage() {
                   <div style={{ width: 30, height: 38, flexShrink: 0, position: "relative", marginTop: 2 }}>
                     <WispMascot size={30} mood="thinking" />
                   </div>
-                  <div className="pt-2.5"><TypingDots /></div>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <ThinkingBubble />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -690,7 +1509,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKey}
-                placeholder={voice.listening ? "Listening — speak now…" : "Ask Wisp anything about your portfolio…"}
+                placeholder={voice.listening ? "Listening - speak now..." : "Ask Wisp about Solana DeFi yields..."}
                 rows={1}
                 className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed placeholder-[#3f3f46]"
                 style={{ color: "#e4e4e7", caretColor: "#a78bfa", minHeight: 24, maxHeight: 180, scrollbarWidth: "none" }}
@@ -702,8 +1521,8 @@ export default function ChatPage() {
                 <motion.button
                   onClick={() => fileRef.current?.click()}
                   className="flex items-center justify-center w-8 h-8 rounded-xl"
-                  style={{ color: "#3f3f46", background: "rgba(0,0,0,0)" }}
-                  whileHover={{ color: "#a1a1aa", background: "rgba(255,255,255,0.06)" }}
+                  style={{ color: "#3f3f46", backgroundColor: "rgba(0,0,0,0)" }}
+                  whileHover={{ color: "#a1a1aa", backgroundColor: "rgba(255,255,255,0.06)" }}
                   title="Attach file"
                 >
                   <Paperclip size={15} strokeWidth={1.6} />
@@ -716,11 +1535,11 @@ export default function ChatPage() {
                     className="flex items-center justify-center w-8 h-8 rounded-xl relative"
                     style={{
                       color: voice.listening ? "#f87171" : "#3f3f46",
-                      background: voice.listening ? "rgba(239,68,68,0.1)" : "rgba(0,0,0,0)",
+                      backgroundColor: voice.listening ? "rgba(239,68,68,0.1)" : "rgba(0,0,0,0)",
                     }}
                     whileHover={{
                       color: voice.listening ? "#f87171" : "#a1a1aa",
-                      background: voice.listening ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)",
+                      backgroundColor: voice.listening ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)",
                     }}
                     title={voice.listening ? "Stop listening" : "Voice input"}
                   >
@@ -741,9 +1560,9 @@ export default function ChatPage() {
                   onClick={() => send()}
                   disabled={!canSend}
                   className="flex items-center justify-center w-8 h-8 rounded-xl"
-                  animate={{ background: canSend ? "#5b21b6" : "rgba(255,255,255,0.05)" }}
+                  animate={{ backgroundColor: canSend ? "#5b21b6" : "rgba(255,255,255,0.05)" }}
                   style={{ color: canSend ? "#ffffff" : "#3f3f46" }}
-                  whileHover={canSend ? { background: "#6d28d9", scale: 1.06 } : {}}
+                  whileHover={canSend ? { backgroundColor: "#6d28d9", scale: 1.06 } : {}}
                   whileTap={canSend ? { scale: 0.9 } : {}}
                   title="Send (Enter)"
                 >
@@ -771,7 +1590,7 @@ export default function ChatPage() {
           </div>
 
           <p className="text-center mt-2" style={{ fontSize: 10, color: "#1c1c2e" }}>
-            Wisp may make mistakes. Always verify DeFi positions on-chain.
+            Public data only. Personal positions need wallet connection or a provided public address.
           </p>
         </div>
       </div>
