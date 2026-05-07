@@ -9,8 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@drift-labs/sdk": "^2.163.0-beta.12",
+    "@meteora-ag/dlmm": "^1.9.7",
+    "@mrgnlabs/marginfi-client-v2": "^6.4.1",
+    "@orca-so/whirlpools": "^7.0.2",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@raydium-io/raydium-sdk-v2": "^0.2.42-alpha",
+    "@solana/kit": "^5.5.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
     "@types/pg": "^8.20.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
