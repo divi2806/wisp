@@ -21,6 +21,7 @@ const nav: {
   hint: string;
   href: string;
   icon: LucideIcon;
+  tourId: string;
   exact?: boolean;
   accent: string;
   accentBg: string;
@@ -32,6 +33,7 @@ const nav: {
     hint: "Portfolio overview",
     href: "/home",
     icon: Hexagon,
+    tourId: "dashboard",
     exact: true,
     accent: "#a78bfa",
     accentBg: "rgba(139,92,246,0.13)",
@@ -39,10 +41,22 @@ const nav: {
     glow: "rgba(139,92,246,0.45)",
   },
   {
+    label: "Chat",
+    hint: "Ask Wisp anything",
+    href: "/home/chat",
+    icon: Navigation,
+    tourId: "chat",
+    accent: "#38bdf8",
+    accentBg: "rgba(56,189,248,0.10)",
+    accentBorder: "rgba(56,189,248,0.26)",
+    glow: "rgba(56,189,248,0.38)",
+  },
+  {
     label: "Backtest",
     hint: "Strategy testing",
     href: "/home/backtest",
     icon: Activity,
+    tourId: "backtest",
     accent: "#818cf8",
     accentBg: "rgba(129,140,248,0.12)",
     accentBorder: "rgba(129,140,248,0.26)",
@@ -53,6 +67,7 @@ const nav: {
     hint: "Browse strategies",
     href: "/home/marketplace",
     icon: Store,
+    tourId: "marketplace",
     accent: "#fbbf24",
     accentBg: "rgba(251,191,36,0.10)",
     accentBorder: "rgba(251,191,36,0.26)",
@@ -63,26 +78,18 @@ const nav: {
     hint: "Paper event markets",
     href: "/home/prediction-market",
     icon: TrendingUp,
+    tourId: "prediction-market",
     accent: "#fb7185",
     accentBg: "rgba(251,113,133,0.10)",
     accentBorder: "rgba(251,113,133,0.26)",
     glow: "rgba(251,113,133,0.38)",
   },
   {
-    label: "Chat",
-    hint: "Ask Wisp anything",
-    href: "/home/chat",
-    icon: Navigation,
-    accent: "#38bdf8",
-    accentBg: "rgba(56,189,248,0.10)",
-    accentBorder: "rgba(56,189,248,0.26)",
-    glow: "rgba(56,189,248,0.38)",
-  },
-  {
     label: "Trade",
     hint: "Paper & live trading",
     href: "/home/trade",
     icon: RefreshCw,
+    tourId: "trade",
     accent: "#34d399",
     accentBg: "rgba(52,211,153,0.10)",
     accentBorder: "rgba(52,211,153,0.26)",
@@ -176,12 +183,13 @@ export default function Sidebar() {
 
       {/* ── Nav ── */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto pb-2">
-        {nav.map(({ label, hint, href, icon: Icon, exact, accent, accentBg, accentBorder, glow }) => {
+        {nav.map(({ label, hint, href, icon: Icon, tourId, exact, accent, accentBg, accentBorder, glow }) => {
           const active = isActive(href, exact);
 
           return (
             <Link key={href} href={href} style={{ display: "block" }}>
               <motion.div
+                data-tour-id={`sidebar-${tourId}`}
                 className="relative flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer"
                 style={{
                   background: active ? accentBg : "rgba(0,0,0,0)",
