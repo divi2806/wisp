@@ -1,7 +1,13 @@
 import { fetchPerpsContext, type PerpsContext } from "@/lib/defi/perps";
 import { buildProtocolPositionContext, type ProtocolPositionContext } from "@/lib/defi/protocolPositions";
 import { fetchTokenRiskContext, type TokenRiskContext } from "@/lib/defi/tokenRisk";
-import { fetchWalletLookupContext, shouldFetchWalletContext, type WalletLookupContext } from "@/lib/defi/walletLookup";
+import {
+  fetchWalletLookupContext,
+  fetchWalletLookupContextForAddress,
+  shouldFetchConnectedWalletContext,
+  shouldFetchWalletContext,
+  type WalletLookupContext,
+} from "@/lib/defi/walletLookup";
 import { detectSolanaTokenSymbols, fetchBirdeyeTokenContext, type BirdeyeTokenContext } from "@/lib/market/birdeye";
 
 type RawLlamaYieldPool = Record<string, unknown>;
@@ -43,7 +49,7 @@ export type SolanaYieldContext = {
 
 export type DashboardDeFiContext = {
   scope: "public_solana_defi_data";
-  walletStatus: "not_connected" | "public_wallet_lookup";
+  walletStatus: "not_connected" | "public_wallet_lookup" | "connected_wallet_lookup";
   personalDataLimit: string;
   yields: SolanaYieldContext | null;
   tokens: BirdeyeTokenContext;
@@ -258,12 +264,24 @@ function shouldAddDefaultDeFiTokens(message: string, detectedSymbols: string[]) 
   return ["SOL", "JUP", "JTO", "KMNO"];
 }
 
-export async function buildDashboardDeFiContext(args: { message: string }): Promise<DashboardDeFiContext> {
+export async function buildDashboardDeFiContext(args: {
+  message: string;
+  connectedWalletAddress?: string | null;
+}): Promise<DashboardDeFiContext> {
   const detectedSymbols = shouldAddDefaultDeFiTokens(args.message, detectSolanaTokenSymbols(args.message));
+  const hasExplicitWallet = shouldFetchWalletContext(args.message);
+  const shouldUseConnectedWallet =
+    !hasExplicitWallet &&
+    Boolean(args.connectedWalletAddress) &&
+    shouldFetchConnectedWalletContext(args.message);
   const [yieldsResult, tokensResult, walletResult, tokenRiskResult, perpsResult] = await Promise.allSettled([
     fetchSolanaYieldContext(args.message),
     fetchBirdeyeTokenContext(detectedSymbols),
-    shouldFetchWalletContext(args.message) ? fetchWalletLookupContext(args.message) : Promise.resolve(null),
+    hasExplicitWallet
+      ? fetchWalletLookupContext(args.message)
+      : shouldUseConnectedWallet && args.connectedWalletAddress
+        ? fetchWalletLookupContextForAddress(args.connectedWalletAddress)
+        : Promise.resolve(null),
     fetchTokenRiskContext(args.message),
     fetchPerpsContext(args.message),
   ]);
@@ -274,9 +292,15 @@ export async function buildDashboardDeFiContext(args: { message: string }): Prom
 
   return {
     scope: "public_solana_defi_data",
-    walletStatus: wallet?.resolvedAddress ? "public_wallet_lookup" : "not_connected",
+    walletStatus: wallet?.resolvedAddress
+      ? shouldUseConnectedWallet
+        ? "connected_wallet_lookup"
+        : "public_wallet_lookup"
+      : "not_connected",
     personalDataLimit:
-      "Connected-user wallet integration is not active. Public wallet lookups are allowed when the user provides an address/.sol, but do not claim private/user-owned data unless a public wallet was explicitly provided.",
+      wallet?.resolvedAddress && shouldUseConnectedWallet
+        ? "A connected wallet public key is available. Treat it as public read-only wallet data; do not claim private/off-chain data and do not imply transaction authority unless the user signs later."
+        : "Public wallet lookups are available when the user provides an address/.sol. Without a connected wallet or provided public address, do not claim exact personal balances, PnL, liquidation, or protocol exposure.",
     yields: yieldsResult.status === "fulfilled" ? yieldsResult.value : null,
     tokens:
       tokensResult.status === "fulfilled"
