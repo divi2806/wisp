@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, BarChart3, Lock, TrendingDown, TrendingUp } from "lucide-react";
 import type { UTCTimestamp } from "lightweight-charts";
 import { TradeTopBar } from "@/components/trade/TradeTopBar";
+import WispPageBar from "@/components/WispPageBar";
 import { MarketsPanel } from "@/components/trade/MarketsPanel";
 import { CandlesChart, type Indicators } from "@/components/trade/CandlesChart";
 import { OrderPanel } from "@/components/trade/OrderPanel";
@@ -234,11 +235,13 @@ export default function TradePage() {
   };
 
   return (
-    <div
-      data-native-scroll
-      className="h-[100dvh] min-h-0 overflow-y-auto overscroll-contain"
-      style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}
-    >
+    <div className="flex flex-col h-screen">
+      <WispPageBar />
+      <div
+        data-native-scroll
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}
+      >
       <TradeTopBar mode={mode} setMode={setMode} paper={paper} setPaper={setPaper} symbol={activeSymbol} />
 
       <div className="px-8 pb-10">
@@ -568,6 +571,7 @@ export default function TradePage() {
           },
         } satisfies WispTradeContext}
       />
+      </div>
     </div>
   );
 }
