@@ -36,6 +36,10 @@ export type WalletLookupContext = {
 };
 
 const WALLET_QUERY_RE = /\b(wallet|address|hold|holds|holding|holdings|portfolio|balance|balances|net\s*worth|worth|owns|tokens?)\b/i;
+const CONNECTED_WALLET_QUERY_RE =
+  /\b(my|mine|connected wallet|show my|check my)\b.*\b(wallet|portfolio|position|positions|hold|holds|holding|holdings|balance|balances|net\s*worth|worth|tokens?|apy|yield|liquidation|pnl|exposure)\b/i;
+const DIRECT_CONNECTED_WALLET_QUERY_RE =
+  /\b(what do i hold|how much do i have|show my wallet|show my portfolio|check my wallet|check my portfolio|my holdings|my balances|my positions)\b/i;
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const KNOWN_TOKENS_BY_MINT = new Map(
   Object.entries(SOLANA_TOKEN_DATA).map(([symbol, token]) => [token.address, { symbol, name: token.name }])
@@ -197,6 +201,88 @@ export function shouldFetchWalletContext(message: string) {
   return WALLET_QUERY_RE.test(message) && (extractSolanaAddresses(message).length > 0 || extractSolDomains(message).length > 0);
 }
 
+export function shouldFetchConnectedWalletContext(message: string) {
+  return CONNECTED_WALLET_QUERY_RE.test(message) || DIRECT_CONNECTED_WALLET_QUERY_RE.test(message);
+}
+
+async function fetchResolvedWalletContext(args: {
+  requested: string;
+  resolvedAddress: string;
+  addressLabel: string;
+  warnings?: string[];
+}): Promise<WalletLookupContext> {
+  const warnings = [...(args.warnings ?? [])];
+  try {
+    const [balanceLamports, parsedHoldings] = await Promise.all([
+      fetchHeliusNativeBalance(args.resolvedAddress).catch(() => null),
+      fetchParsedWalletHoldings(args.resolvedAddress),
+    ]);
+    warnings.push(...parsedHoldings.warnings.slice(0, 2));
+    const rawHoldings = mergeHoldingsByMint(parsedHoldings.holdings);
+
+    const birdeyePrices = await fetchBirdeyePrices([SOL_MINT, ...prioritizePriceMints(rawHoldings)]);
+    warnings.push(...birdeyePrices.warnings);
+
+    const nativeSolAmount = (balanceLamports ?? 0) / 1_000_000_000;
+    const nativeSolPrice = birdeyePrices.prices.get(SOL_MINT) ?? null;
+    const nativeSolValue = nativeSolPrice === null ? null : nativeSolAmount * nativeSolPrice;
+    const holdings = rawHoldings
+      .map((holding) => {
+        const priceUsd = birdeyePrices.prices.get(holding.mint) ?? holding.priceUsd;
+        return {
+          ...holding,
+          priceUsd,
+          valueUsd: holding.amount !== null && priceUsd !== null ? holding.amount * priceUsd : holding.valueUsd,
+        };
+      })
+      .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
+    const tokenValue = holdings.reduce((sum, holding) => sum + (holding.valueUsd ?? 0), 0);
+
+    return {
+      requested: args.requested,
+      resolvedAddress: args.resolvedAddress,
+      addressLabel: args.addressLabel,
+      source: "helius",
+      nativeSol: {
+        amount: nativeSolAmount,
+        valueUsd: nativeSolValue,
+        priceUsd: nativeSolPrice,
+      },
+      totalValueUsd: tokenValue + (nativeSolValue ?? 0),
+      tokenCount: holdings.length,
+      nftCount: null,
+      topTokens: holdings.slice(0, 12),
+      possibleProtocolExposure: detectProtocolExposure(holdings),
+      warnings,
+    };
+  } catch (err: unknown) {
+    return {
+      requested: args.requested,
+      resolvedAddress: args.resolvedAddress,
+      addressLabel: args.addressLabel,
+      source: "helius",
+      nativeSol: { amount: null, valueUsd: null, priceUsd: null },
+      totalValueUsd: null,
+      tokenCount: 0,
+      nftCount: null,
+      topTokens: [],
+      possibleProtocolExposure: [],
+      warnings: [...warnings, err instanceof Error ? err.message : String(err)],
+    };
+  }
+}
+
+export async function fetchWalletLookupContextForAddress(
+  ownerAddress: string,
+  label = "Connected wallet"
+): Promise<WalletLookupContext> {
+  return fetchResolvedWalletContext({
+    requested: label,
+    resolvedAddress: ownerAddress,
+    addressLabel: label,
+  });
+}
+
 export async function fetchWalletLookupContext(message: string): Promise<WalletLookupContext | null> {
   const addresses = extractSolanaAddresses(message, 1);
   const domains = extractSolDomains(message, 1);
@@ -227,62 +313,10 @@ export async function fetchWalletLookupContext(message: string): Promise<WalletL
     };
   }
 
-  try {
-    const [balanceLamports, parsedHoldings] = await Promise.all([
-      fetchHeliusNativeBalance(resolvedAddress).catch(() => null),
-      fetchParsedWalletHoldings(resolvedAddress),
-    ]);
-    warnings.push(...parsedHoldings.warnings.slice(0, 2));
-    const rawHoldings = mergeHoldingsByMint(parsedHoldings.holdings);
-
-    const birdeyePrices = await fetchBirdeyePrices([SOL_MINT, ...prioritizePriceMints(rawHoldings)]);
-    warnings.push(...birdeyePrices.warnings);
-
-    const nativeSolAmount = (balanceLamports ?? 0) / 1_000_000_000;
-    const nativeSolPrice = birdeyePrices.prices.get(SOL_MINT) ?? null;
-    const nativeSolValue = nativeSolPrice === null ? null : nativeSolAmount * nativeSolPrice;
-    const holdings = rawHoldings
-      .map((holding) => {
-        const priceUsd = birdeyePrices.prices.get(holding.mint) ?? holding.priceUsd;
-        return {
-          ...holding,
-          priceUsd,
-          valueUsd: holding.amount !== null && priceUsd !== null ? holding.amount * priceUsd : holding.valueUsd,
-        };
-      })
-      .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
-    const tokenValue = holdings.reduce((sum, holding) => sum + (holding.valueUsd ?? 0), 0);
-
-    return {
-      requested,
-      resolvedAddress,
-      addressLabel: domains[0] ?? shortAddress(resolvedAddress),
-      source: "helius",
-      nativeSol: {
-        amount: nativeSolAmount,
-        valueUsd: nativeSolValue,
-        priceUsd: nativeSolPrice,
-      },
-      totalValueUsd: tokenValue + (nativeSolValue ?? 0),
-      tokenCount: holdings.length,
-      nftCount: null,
-      topTokens: holdings.slice(0, 12),
-      possibleProtocolExposure: detectProtocolExposure(holdings),
-      warnings,
-    };
-  } catch (err: unknown) {
-    return {
-      requested,
-      resolvedAddress,
-      addressLabel: domains[0] ?? shortAddress(resolvedAddress),
-      source: "helius",
-      nativeSol: { amount: null, valueUsd: null, priceUsd: null },
-      totalValueUsd: null,
-      tokenCount: 0,
-      nftCount: null,
-      topTokens: [],
-      possibleProtocolExposure: [],
-      warnings: [...warnings, err instanceof Error ? err.message : String(err)],
-    };
-  }
+  return fetchResolvedWalletContext({
+    requested,
+    resolvedAddress,
+    addressLabel: domains[0] ?? shortAddress(resolvedAddress),
+    warnings,
+  });
 }
