@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import SolanaWalletProvider from "@/components/wallet/SolanaWalletProvider";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -29,7 +30,7 @@ export default function RootLayout({
       className={`${jakarta.variable} ${geistMono.variable} antialiased`}
     >
       <body className="min-h-screen bg-[#080b14] text-[#ffffff]">
-        {children}
+        <SolanaWalletProvider>{children}</SolanaWalletProvider>
       </body>
     </html>
   );
