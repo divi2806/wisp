@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useWallet } from "@solana/wallet-adapter-react";
 import {
   Paperclip, ArrowUp, X, Copy, Check, FileText,
   Mic, MicOff, Square, ThumbsUp, ThumbsDown, RotateCcw,
@@ -161,6 +162,7 @@ async function requestWispReply(args: {
   message: string;
   history: Message[];
   files?: AttachedFile[];
+  connectedWalletAddress?: string | null;
 }) {
   const res = await fetch("/api/ai/wisp", {
     method: "POST",
@@ -170,6 +172,7 @@ async function requestWispReply(args: {
       message: args.message,
       history: toApiHistory(args.history),
       files: args.files ?? [],
+      connectedWalletAddress: args.connectedWalletAddress ?? null,
     }),
   });
 
@@ -944,6 +947,7 @@ function useVoice(onTranscript: (t: string, final: boolean) => void) {
 /*                     MAIN COMPONENT                       */
 /* ════════════════════════════════════════════════════════ */
 export default function ChatPage() {
+  const { publicKey } = useWallet();
   const [messages,  setMessages]  = useState<Message[]>([]);
   const [input,     setInput]     = useState("");
   const [files,     setFiles]     = useState<AttachedFile[]>([]);
@@ -1025,6 +1029,7 @@ export default function ChatPage() {
         message: trimmed,
         history,
         files: attachedFiles,
+        connectedWalletAddress: publicKey?.toBase58() ?? null,
       });
       const id = crypto.randomUUID();
       const wispMsg: Message = {
@@ -1083,6 +1088,7 @@ export default function ChatPage() {
         message: lastUser.content,
         history,
         files: lastUser.files ?? [],
+        connectedWalletAddress: publicKey?.toBase58() ?? null,
       });
       const id = crypto.randomUUID();
       setMessages((p) => [...p, {
