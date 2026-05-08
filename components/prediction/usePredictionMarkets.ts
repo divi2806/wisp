@@ -152,7 +152,7 @@ export function usePredictionMarkets() {
       const symbols = [...new Set(PREDICTION_MARKETS.map((market) => market.symbol))];
       const entries = await Promise.all(
         symbols.map(async (symbol) => {
-          const params = new URLSearchParams({ mode: "perps", symbol, interval: "1m", limit: "420" });
+          const params = new URLSearchParams({ mode: "spot", symbol, interval: "1m", limit: "420" });
           const res = await fetch(`/api/market/klines?${params.toString()}`, { cache: "no-store" });
           if (!res.ok) throw new Error(`${symbol} history failed (${res.status})`);
           const json = (await res.json()) as { candles?: Candle[] };

@@ -75,9 +75,15 @@ export async function fetchBinanceKlines(opts: {
     `${baseUrl(mode)}/${mode === "perps" ? "fapi" : "api"}/v1/klines?symbol=${encodeURIComponent(
       symbol
     )}&interval=${encodeURIComponent(interval)}&limit=${limit}`,
-    { next: { revalidate: 2 } }
+    {
+      next: { revalidate: 2 },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; WispBot/1.0)",
+        "Accept": "application/json",
+      },
+    }
   );
-  if (!res.ok) throw new Error(`Binance klines failed (${res.status})`);
+  if (!res.ok) throw new Error(`Binance klines failed (${res.status} ${res.statusText})`);
   return (await res.json()) as Array<
     [
       number, // openTime
