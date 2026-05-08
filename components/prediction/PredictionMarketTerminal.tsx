@@ -81,19 +81,20 @@ function MarketCard(props: {
   return (
     <button
       onClick={onClick}
-      className="min-h-[132px] rounded-2xl border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300"
+      className="min-h-[124px] rounded-2xl border p-4 text-left shadow-[0_18px_46px_rgba(0,0,0,0.20)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       style={{
-        background: active ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.025)",
-        borderColor: active ? "rgba(251,113,133,0.32)" : "rgba(255,255,255,0.06)",
+        background: active ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.025)",
+        borderColor: active ? "rgba(125,211,252,0.36)" : "rgba(255,255,255,0.07)",
+        boxShadow: active ? "0 22px 60px rgba(8,145,178,0.12)" : undefined,
       }}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-zinc-100">{market.label}</p>
-          <p className="mt-1 text-xs text-zinc-500">{market.durationMinutes} minute rolling binary</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-zinc-100">{market.label}</p>
+          <p className="mt-1 text-xs text-zinc-500">{market.durationMinutes}m rolling binary</p>
         </div>
         <span
-          className="rounded-full border px-2 py-1 font-mono text-[11px]"
+          className="shrink-0 rounded-full border px-2 py-1 font-mono text-[11px]"
           style={{ color: statusTone(market.wsStatus).color, borderColor: statusTone(market.wsStatus).border, background: statusTone(market.wsStatus).bg }}
         >
           {timer(market.timeRemainingMs)}
@@ -101,11 +102,11 @@ function MarketCard(props: {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-2">
+        <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/70">YES</p>
           <p className="mt-1 font-mono text-lg font-bold text-emerald-300">{odds(market.yesPrice)}</p>
         </div>
-        <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.06] px-3 py-2">
+        <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.055] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300/70">NO</p>
           <p className="mt-1 font-mono text-lg font-bold text-rose-300">{odds(market.noPrice)}</p>
         </div>
@@ -160,7 +161,7 @@ function OrderTicket(props: {
   };
 
   return (
-    <section className="rounded-2xl border border-white/[0.06] bg-[#0d1020]">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
       <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4">
         <div>
           <p className="text-sm font-semibold text-zinc-100">Paper Ticket</p>
@@ -314,7 +315,7 @@ function PositionsPanel(props: {
   const { market, positions, fills, settlements, clearHistory } = props;
   const openPositions = positions.slice(0, 8);
   return (
-    <section className="rounded-2xl border border-white/[0.06] bg-[#0d1020]">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
       <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4">
         <div>
           <p className="text-sm font-semibold text-zinc-100">Positions</p>
@@ -412,7 +413,7 @@ function PolymarketPanel(props: {
 }) {
   const { asset, references, warning, loading } = props;
   return (
-    <section className="rounded-2xl border border-white/[0.06] bg-[#0d1020]">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
       <div className="flex items-center gap-2 border-b border-white/[0.05] px-4 py-4">
         <Sparkles size={15} className="text-rose-300" />
         <div>
@@ -517,48 +518,54 @@ export function PredictionMarketTerminal() {
   return (
     <div
       data-native-scroll
-      className="h-[100dvh] min-h-0 overflow-y-auto overscroll-contain"
-      style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[#080b14]"
+      style={{
+        scrollbarWidth: "thin",
+        WebkitOverflowScrolling: "touch",
+        background: "linear-gradient(180deg, #080b14 0%, #090d18 46%, #080b14 100%)",
+      }}
     >
-      <div className="mx-auto max-w-7xl px-5 pb-12 pt-8 lg:px-8">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-400/20 bg-rose-400/10">
-                <TrendingUp size={16} className="text-rose-300" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-extrabold tracking-tight text-zinc-50">Prediction Market</h1>
-                <p className="mt-1 text-sm text-zinc-500">Paper trade rolling BTC/SOL 5m and 15m binary markets.</p>
+      <div className="mx-auto max-w-[1500px] px-5 pb-12 pt-6 lg:px-7">
+        <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 px-5 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] lg:pr-44">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-400/20 bg-rose-400/10">
+                  <TrendingUp size={17} className="text-rose-300" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="truncate text-2xl font-extrabold tracking-tight text-zinc-50">Prediction Market</h1>
+                  <p className="mt-1 text-sm text-zinc-500">Paper trade rolling BTC/SOL 5m and 15m binary markets.</p>
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
+
+            <div className="flex flex-wrap items-center gap-2 text-xs xl:justify-end">
               <span
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-semibold"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-semibold"
                 style={{ color: status.color, background: status.bg, borderColor: status.border }}
               >
                 <Signal size={13} />
                 Binance WS {status.label}
               </span>
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 font-mono text-zinc-500">
+              <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 font-mono text-zinc-500">
                 <Clock3 size={13} />
                 {timer(activeMarket.timeRemainingMs)} left
               </span>
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 font-mono text-zinc-500">
-                Paper only · USDC balance {money(paper.state.cashUSDC)}
+              <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 font-mono text-zinc-500">
+                Paper USDC {money(paper.state.cashUSDC)}
               </span>
+              <button
+                type="button"
+                onClick={() => void refreshHistory()}
+                className="flex h-9 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                Refresh
+              </button>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void refreshHistory()}
-            className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-cyan-300"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh history
-          </button>
-        </div>
+        </section>
 
         {error && (
           <div className="mb-4 flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] px-4 py-3">
@@ -576,28 +583,28 @@ export function PredictionMarketTerminal() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-4">
-            <section className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0d1020]">
-              <div className="border-b border-white/[0.05] px-4 py-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
+              <div className="border-b border-white/[0.06] px-5 py-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600">Active market</p>
-                    <h2 className="mt-1 text-xl font-bold text-zinc-50">{activeMarket.question}</h2>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                      <span className="font-mono text-zinc-500">Open <span className="text-zinc-300">{price(activeMarket.startPrice, activeMarket.asset)}</span></span>
-                      <span className="font-mono text-zinc-500">Live <span className={lastMoveUp ? "text-emerald-300" : "text-rose-300"}>{price(activeMarket.livePrice, activeMarket.asset)}</span></span>
-                      <span className="font-mono text-zinc-500">Distance <span className={(activeMarket.distanceUsd ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{money(activeMarket.distanceUsd, activeMarket.asset === "BTC" ? 1 : 4)}</span></span>
-                      <span className="font-mono text-zinc-500">Move <span className={(activeMarket.changePct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{pct(activeMarket.changePct)}</span></span>
+                    <h2 className="mt-1 text-xl font-bold leading-tight text-zinc-50">{activeMarket.question}</h2>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Open <span className="text-zinc-300">{price(activeMarket.startPrice, activeMarket.asset)}</span></span>
+                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Live <span className={lastMoveUp ? "text-emerald-300" : "text-rose-300"}>{price(activeMarket.livePrice, activeMarket.asset)}</span></span>
+                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Distance <span className={(activeMarket.distanceUsd ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{money(activeMarket.distanceUsd, activeMarket.asset === "BTC" ? 1 : 4)}</span></span>
+                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Move <span className={(activeMarket.changePct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{pct(activeMarket.changePct)}</span></span>
                     </div>
                   </div>
 
                   <div className="grid min-w-[280px] grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-4 py-3">
+                    <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-4 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/70">YES mark</p>
                       <p className="mt-1 font-mono text-2xl font-bold text-emerald-300">{odds(activeMarket.yesPrice)}</p>
                     </div>
-                    <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.06] px-4 py-3">
+                    <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.055] px-4 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-300/70">NO mark</p>
                       <p className="mt-1 font-mono text-2xl font-bold text-rose-300">{odds(activeMarket.noPrice)}</p>
                     </div>
@@ -614,7 +621,7 @@ export function PredictionMarketTerminal() {
               </div>
 
               {loading && activeMarket.candles.length === 0 ? (
-                <div className="flex h-[560px] items-center justify-center">
+                <div className="flex h-[520px] items-center justify-center">
                   <div className="text-center">
                     <Activity size={22} className="mx-auto animate-pulse text-zinc-600" />
                     <p className="mt-3 text-sm font-semibold text-zinc-300">Loading Binance candles</p>
@@ -625,7 +632,7 @@ export function PredictionMarketTerminal() {
                 <div className="px-2 pb-2 pt-3">
                   <CandlesChart
                     candles={activeMarket.candles}
-                    height={560}
+                    height={520}
                     livePrice={activeMarket.livePrice}
                     symbol={activeMarket.contractId}
                     referencePrice={{
@@ -639,7 +646,7 @@ export function PredictionMarketTerminal() {
             </section>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0d1020] p-4">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
                 <div className="mb-3 flex items-center gap-2">
                   <Wallet size={15} className="text-cyan-300" />
                   <p className="text-sm font-semibold text-zinc-100">Account</p>
@@ -650,7 +657,7 @@ export function PredictionMarketTerminal() {
                   <div className="flex items-center justify-between"><span className="text-zinc-500">Open positions</span><span className="font-mono text-zinc-300">{paper.state.positions.length}</span></div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0d1020] p-4">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
                 <div className="mb-3 flex items-center gap-2">
                   <ArrowUp size={15} className="text-emerald-300" />
                   <p className="text-sm font-semibold text-zinc-100">YES exposure</p>
@@ -661,7 +668,7 @@ export function PredictionMarketTerminal() {
                   <div className="flex items-center justify-between"><span className="text-zinc-500">Mark value</span><span className="font-mono text-zinc-300">{money(activePositionValue(activeMarket, "yes", activeYes?.shares ?? 0))}</span></div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0d1020] p-4">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
                 <div className="mb-3 flex items-center gap-2">
                   <ArrowDown size={15} className="text-rose-300" />
                   <p className="text-sm font-semibold text-zinc-100">NO exposure</p>
