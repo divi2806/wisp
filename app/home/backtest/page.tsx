@@ -3,10 +3,14 @@
 import { motion } from "framer-motion";
 import { Activity, FlaskConical } from "lucide-react";
 import WispMascot from "@/components/WispMascot";
+import WispPageBar from "@/components/WispPageBar";
 
 export default function BacktestPage() {
   return (
-    <div className="px-8 py-10 max-w-5xl mx-auto">
+    <div className="flex flex-col h-screen">
+      <WispPageBar />
+      <div className="flex-1 overflow-y-auto">
+      <div className="px-8 py-10 max-w-5xl mx-auto">
       <motion.div
         className="flex items-center gap-3 mb-10"
         initial={{ opacity: 0, y: 16 }}
@@ -45,6 +49,8 @@ export default function BacktestPage() {
           Milestone 4 · June 2026
         </div>
       </motion.div>
+    </div>
+      </div>
     </div>
   );
 }
