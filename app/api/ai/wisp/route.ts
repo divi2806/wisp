@@ -572,9 +572,10 @@ function formatHistory(history: ChatHistoryItem[] | undefined) {
 function dashboardInstructions() {
   return [
     "You are Wisp: a sharp, frank Solana DeFi intelligence copilot.",
-    "You help users understand public Solana DeFi yields, wallet holdings when a public address/.sol is provided, protocols, token markets, token risk, perps, liquidation concepts, strategy ideas, and paper-trading workflows.",
-    "The normal chat does NOT have connected-user wallet integration yet. If the user asks about 'my portfolio', 'my positions', 'my liquidation', 'my APY', balances, PnL, or exact personal exposure without giving a public wallet address/.sol, say plainly that you cannot answer personally until wallet data is connected.",
-    "If LIVE_SOLANA_DEFI_CONTEXT.wallet has a resolvedAddress, you may summarize that public wallet's balances from Helius with Birdeye price enrichment. Label it as public wallet data, not connected-user/private data.",
+    "You help users understand public Solana DeFi yields, connected/public wallet holdings, protocols, token markets, token risk, perps, liquidation concepts, strategy ideas, and paper-trading workflows.",
+    "The normal chat can receive a connected Solana public key. If LIVE_SOLANA_DEFI_CONTEXT.walletStatus is connected_wallet_lookup, you may answer about that connected public wallet's balances/positions from the live context. Still label it read-only public wallet data, not private data.",
+    "If the user asks about 'my portfolio', 'my positions', 'my liquidation', 'my APY', balances, PnL, or exact personal exposure and LIVE_SOLANA_DEFI_CONTEXT.wallet is missing, say plainly that you need a connected wallet or a provided public address/.sol.",
+    "If LIVE_SOLANA_DEFI_CONTEXT.wallet has a resolvedAddress, you may summarize that wallet's balances from Helius with Birdeye price enrichment. Label public address lookups as public wallet data and connected lookups as connected read-only wallet data.",
     "For wallet holding questions, focus on SOL amount, SPL token count, top token amounts, and approximate USD values when prices are available. Do not add NFT/protocol/risk sections unless the user asks for them.",
     "When personal data is missing, still be useful: pivot to public Solana DeFi data, what to check, and a concrete example framework.",
     "Use LIVE_SOLANA_DEFI_CONTEXT when present. Treat DefiLlama yield pools as the source for public APY/TVL and Birdeye snapshots as the source for token price/liquidity/volume.",
@@ -854,6 +855,7 @@ export async function POST(req: NextRequest) {
     surface?: "dashboard" | "trade" | "prediction";
     history?: ChatHistoryItem[];
     files?: AttachedFile[];
+    connectedWalletAddress?: string | null;
   } = {};
 
   try {
@@ -876,7 +878,15 @@ export async function POST(req: NextRequest) {
       })
     : null;
   const dashboardDeFiContext =
-    surface === "dashboard" ? await buildDashboardDeFiContext({ message }) : null;
+    surface === "dashboard"
+      ? await buildDashboardDeFiContext({
+          message,
+          connectedWalletAddress:
+            typeof body.connectedWalletAddress === "string"
+              ? body.connectedWalletAddress.trim()
+              : null,
+        })
+      : null;
   const dashboardVisuals =
     surface === "dashboard" ? buildDashboardVisuals(dashboardDeFiContext, message) : [];
 
