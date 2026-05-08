@@ -1,247 +1,412 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  LayoutDashboard,
+  ArrowRight,
   BarChart2,
-  ShoppingBag,
-  MessageSquare,
-  Zap,
-  ChevronRight,
+  Bot,
+  Check,
   ChevronLeft,
+  ChevronRight,
+  Hexagon,
+  MessageSquare,
+  MousePointer2,
+  RefreshCw,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+  Wallet,
   X,
+  Zap,
 } from "lucide-react";
 import WispMascot, { WispMood } from "@/components/WispMascot";
 
-const STORAGE_KEY = "wisp_onboarded_v1";
+const STORAGE_KEY = "wisp_product_tour_v2";
 
-const steps = [
+type DeckStep = {
+  id: string;
+  icon: typeof Sparkles;
+  mood: WispMood;
+  title: string;
+  subtitle: string;
+  body: string;
+  points: string[];
+  accent: string;
+  accentBg: string;
+  accentBorder: string;
+};
+
+type TourStep = {
+  id: string;
+  targetId: string;
+  icon: typeof Sparkles;
+  title: string;
+  body: string;
+  accent: string;
+};
+
+const deckSteps: DeckStep[] = [
   {
     id: "welcome",
-    icon: null,
-    mood: "excited" as WispMood,
-    quote: "gm fren! 👋",
+    icon: Sparkles,
+    mood: "excited",
     title: "Welcome to Wisp",
-    subtitle: "Your AI co-pilot for Solana DeFi",
-    body: "Wisp unifies your entire Solana DeFi portfolio, alerts you to risks before they become losses, and gives you the tools to backtest and trade — all with read-only wallet access. Let's walk through what you can do.",
-    accent: "#8b5cf6",
-    accentBg: "rgba(139,92,246,0.08)",
-    accentBorder: "rgba(139,92,246,0.2)",
-  },
-  {
-    id: "dashboard",
-    icon: LayoutDashboard,
-    mood: "happy" as WispMood,
-    quote: "ur bags, unified 💼",
-    title: "Portfolio Dashboard",
-    subtitle: "Every position. One screen.",
-    body: "See your total portfolio value, per-position APY, 24h P&L, risk scores, and sparklines across Kamino, Jupiter, Drift, Orca, Marinade — all aggregated via Helius RPC in under 100ms. No more juggling 7 tabs.",
-    accent: "#22c55e",
-    accentBg: "rgba(34,197,94,0.08)",
-    accentBorder: "rgba(34,197,94,0.2)",
-  },
-  {
-    id: "backtest",
-    icon: BarChart2,
-    mood: "thinking" as WispMood,
-    quote: "data goes brrrr 📊",
-    title: "Backtest",
-    subtitle: "Know your edge before risking capital.",
-    body: "Run any strategy against 2 years of real Solana DeFi historical data. See the exact P&L curve, maximum drawdown, Sharpe ratio, and benchmark comparison. Validate before you deploy.",
+    subtitle: "Your Solana DeFi control room",
+    body: "Wisp helps you understand wallets, yields, token risk, perps, paper trading, and prediction markets from one workspace.",
+    points: ["Ask in plain English", "See visual cards when useful", "Use public and connected wallet data"],
     accent: "#a78bfa",
-    accentBg: "rgba(167,139,250,0.08)",
-    accentBorder: "rgba(167,139,250,0.22)",
+    accentBg: "rgba(167,139,250,0.10)",
+    accentBorder: "rgba(167,139,250,0.26)",
   },
   {
-    id: "marketplace",
-    icon: ShoppingBag,
-    mood: "rich" as WispMood,
-    quote: "copy the best 😎",
-    title: "Marketplace",
-    subtitle: "Proven strategies, one click away.",
-    body: "Browse battle-tested DeFi strategies curated by top Solana traders. Filter by protocol, risk level, and historical returns. Deploy directly to paper trading or go live when you're ready.",
-    accent: "#f59e0b",
-    accentBg: "rgba(245,158,11,0.08)",
-    accentBorder: "rgba(245,158,11,0.2)",
+    id: "wallet",
+    icon: Wallet,
+    mood: "happy",
+    title: "Connect Once, Read Safely",
+    subtitle: "Read-only first",
+    body: "After connecting, Wisp can use your public address to summarize holdings and protocol exposure. It does not move funds without a future signed transaction flow.",
+    points: ["SOL and SPL balances", "Protocol position checks", "Copy, inspect, or disconnect anytime"],
+    accent: "#22c55e",
+    accentBg: "rgba(34,197,94,0.10)",
+    accentBorder: "rgba(34,197,94,0.24)",
   },
   {
-    id: "chat",
-    icon: MessageSquare,
-    mood: "mischief" as WispMood,
-    quote: "i see ur bags 👀",
-    title: "Chat",
-    subtitle: "Ask Wisp anything about your portfolio.",
-    body: "Get AI-powered insights in plain English. Ask about your liquidation risk, yield optimization, funding rates, or what happened to your portfolio in the last 30 days. Wisp knows the protocols.",
+    id: "intelligence",
+    icon: Bot,
+    mood: "thinking",
+    title: "Ask Wisp Anything",
+    subtitle: "Frank DeFi intelligence",
+    body: "Use chat for best yields, token risk, wallet lookups, perps context, protocol APIs, and strategy explanations. Wisp stays precise and calls out missing live data.",
+    points: ["Yield rankings", "Token risk scorecards", "Wallet and protocol context"],
     accent: "#38bdf8",
-    accentBg: "rgba(56,189,248,0.08)",
-    accentBorder: "rgba(56,189,248,0.2)",
+    accentBg: "rgba(56,189,248,0.10)",
+    accentBorder: "rgba(56,189,248,0.24)",
   },
   {
-    id: "trade",
-    icon: Zap,
-    mood: "excited" as WispMood,
-    quote: "0 risk is my fav risk 🚀",
-    title: "Trade",
-    subtitle: "Test live. Execute with confidence.",
-    body: "Simulate live trades in real market conditions with zero real capital at risk. When you're confident in your strategy, execute directly. Wisp handles position sizing, slippage estimation, and post-trade tracking.",
-    accent: "#34d399",
-    accentBg: "rgba(52,211,153,0.08)",
-    accentBorder: "rgba(52,211,153,0.2)",
+    id: "simulate",
+    icon: TrendingUp,
+    mood: "mischief",
+    title: "Practice Before Risk",
+    subtitle: "Paper trade and event markets",
+    body: "Use Trade and Prediction Market to test ideas against live price movement without risking capital. Wisp sits beside those panels for context.",
+    points: ["Paper spot trading", "BTC/SOL prediction markets", "Realtime market context"],
+    accent: "#fb7185",
+    accentBg: "rgba(251,113,133,0.10)",
+    accentBorder: "rgba(251,113,133,0.24)",
   },
 ];
 
+const tourSteps: TourStep[] = [
+  {
+    id: "workspace",
+    targetId: "workspace",
+    icon: Hexagon,
+    title: "Workspace",
+    body: "This center area changes by section. Dashboard summarizes, Chat answers, Trade simulates, and Prediction Market runs event-style paper markets.",
+    accent: "#a78bfa",
+  },
+  {
+    id: "wallet",
+    targetId: "wallet-connect",
+    icon: Wallet,
+    title: "Wallet Connect",
+    body: "Connect a Solana wallet here. The dropdown lets you copy the address, open Solscan, or disconnect.",
+    accent: "#22c55e",
+  },
+  {
+    id: "dashboard",
+    targetId: "sidebar-dashboard",
+    icon: Hexagon,
+    title: "Dashboard",
+    body: "Your portfolio home. This is where wallet-level summaries and high-level DeFi health belong.",
+    accent: "#a78bfa",
+  },
+  {
+    id: "chat",
+    targetId: "sidebar-chat",
+    icon: MessageSquare,
+    title: "Chat",
+    body: "Ask Wisp about yields, wallets, token risk, perps, protocol positions, APIs, and strategy ideas.",
+    accent: "#38bdf8",
+  },
+  {
+    id: "backtest",
+    targetId: "sidebar-backtest",
+    icon: BarChart2,
+    title: "Backtest",
+    body: "Use this section to validate strategy logic before putting real capital behind it.",
+    accent: "#818cf8",
+  },
+  {
+    id: "marketplace",
+    targetId: "sidebar-marketplace",
+    icon: ShoppingBag,
+    title: "Marketplace",
+    body: "Browse and compare strategies. This is the future surface for curated DeFi playbooks.",
+    accent: "#fbbf24",
+  },
+  {
+    id: "prediction",
+    targetId: "sidebar-prediction-market",
+    icon: TrendingUp,
+    title: "Prediction Market",
+    body: "Paper trade BTC and SOL 5m/15m event markets with realtime price movement and Wisp beside the book.",
+    accent: "#fb7185",
+  },
+  {
+    id: "trade",
+    targetId: "sidebar-trade",
+    icon: RefreshCw,
+    title: "Trade",
+    body: "Practice paper trades on token charts. It is built for trying entries, exits, and sizing before real execution.",
+    accent: "#34d399",
+  },
+];
+
+function setSeen() {
+  try {
+    localStorage.setItem(STORAGE_KEY, "1");
+  } catch {}
+}
+
+function getSeen() {
+  try {
+    return Boolean(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return true;
+  }
+}
+
+function getTargetRect(targetId: string) {
+  const el = document.querySelector(`[data-tour-id="${targetId}"]`);
+  if (!el) return null;
+
+  const raw = el.getBoundingClientRect();
+  const pad = targetId === "workspace" ? 10 : 8;
+  return {
+    top: Math.max(10, raw.top - pad),
+    left: Math.max(10, raw.left - pad),
+    width: Math.min(window.innerWidth - 20, raw.width + pad * 2),
+    height: Math.min(window.innerHeight - 20, raw.height + pad * 2),
+  };
+}
+
+function tooltipStyle(rect: ReturnType<typeof getTargetRect>): CSSProperties {
+  if (typeof window === "undefined") {
+    return {
+      left: "50%",
+      top: "50%",
+      width: 380,
+      transform: "translate(-50%, -50%)",
+    };
+  }
+
+  const width = Math.min(380, window.innerWidth - 32);
+  if (!rect) {
+    return {
+      left: "50%",
+      top: "50%",
+      width,
+      transform: "translate(-50%, -50%)",
+    };
+  }
+
+  const gap = 16;
+  const canRight = rect.left + rect.width + gap + width < window.innerWidth - 16;
+  const canLeft = rect.left - gap - width > 16;
+  const top = Math.min(Math.max(16, rect.top), window.innerHeight - 250);
+
+  if (canRight) return { left: rect.left + rect.width + gap, top, width };
+  if (canLeft) return { left: rect.left - gap - width, top, width };
+
+  const belowTop = rect.top + rect.height + gap;
+  const useBelow = belowTop + 230 < window.innerHeight;
+  return {
+    left: Math.min(Math.max(16, rect.left), window.innerWidth - width - 16),
+    top: useBelow ? belowTop : Math.max(16, rect.top - 246),
+    width,
+  };
+}
+
 export default function OnboardingModal() {
-  const [visible, setVisible] = useState(() => {
-    try {
-      if (typeof window === "undefined") return false;
-      return !localStorage.getItem(STORAGE_KEY);
-    } catch {
-      return false;
-    }
-  });
-  const [step, setStep] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const [phase, setPhase] = useState<"deck" | "tour">("deck");
+  const [deckIndex, setDeckIndex] = useState(0);
+  const [tourIndex, setTourIndex] = useState(0);
   const [direction, setDirection] = useState(1);
+  const [targetRect, setTargetRect] = useState<ReturnType<typeof getTargetRect>>(null);
 
-  const dismiss = () => {
-    try { localStorage.setItem(STORAGE_KEY, "1"); } catch {}
+  useEffect(() => {
+    if (!getSeen()) {
+      const timeout = window.setTimeout(() => setVisible(true), 500);
+      return () => window.clearTimeout(timeout);
+    }
+  }, []);
+
+  const dismiss = useCallback(() => {
+    setSeen();
     setVisible(false);
+  }, []);
+
+  const refreshTarget = useCallback(() => {
+    if (phase !== "tour") return;
+    const step = tourSteps[tourIndex];
+    window.requestAnimationFrame(() => setTargetRect(getTargetRect(step.targetId)));
+  }, [phase, tourIndex]);
+
+  useEffect(() => {
+    refreshTarget();
+  }, [refreshTarget]);
+
+  useEffect(() => {
+    if (phase !== "tour") return;
+    window.addEventListener("resize", refreshTarget);
+    window.addEventListener("scroll", refreshTarget, true);
+    return () => {
+      window.removeEventListener("resize", refreshTarget);
+      window.removeEventListener("scroll", refreshTarget, true);
+    };
+  }, [phase, refreshTarget]);
+
+  const deck = deckSteps[deckIndex];
+  const isFirstDeck = deckIndex === 0;
+  const isLastDeck = deckIndex === deckSteps.length - 1;
+  const currentTour = tourSteps[tourIndex];
+  const isFirstTour = tourIndex === 0;
+  const isLastTour = tourIndex === tourSteps.length - 1;
+  const DeckIcon = deck.icon;
+  const TourIcon = currentTour.icon;
+  const tipStyle = useMemo(() => tooltipStyle(targetRect), [targetRect]);
+
+  const goDeck = (next: number) => {
+    setDirection(next > deckIndex ? 1 : -1);
+    setDeckIndex(next);
   };
 
-  const go = (next: number) => {
-    setDirection(next > step ? 1 : -1);
-    setStep(next);
+  const startTour = () => {
+    setPhase("tour");
+    setTourIndex(0);
   };
 
-  const current = steps[step];
-  const isFirst = step === 0;
-  const isLast = step === steps.length - 1;
-  const IconComp = current.icon;
+  const goTour = (next: number) => {
+    if (next < 0) {
+      setPhase("deck");
+      setDeckIndex(deckSteps.length - 1);
+      return;
+    }
+    setTourIndex(next);
+  };
 
   return (
     <AnimatePresence>
-      {visible && (
+      {visible && phase === "deck" ? (
         <motion.div
-          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          className="fixed inset-0 z-[210] flex items-center justify-center px-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22 }}
         >
-          {/* Backdrop */}
-          <motion.div
-            className="absolute inset-0"
+          <motion.button
+            type="button"
+            aria-label="Close onboarding"
+            className="absolute inset-0 cursor-default"
             style={{
-              background: "rgba(4,5,12,0.8)",
+              background: "rgba(4,5,12,0.82)",
               backdropFilter: "blur(14px)",
               WebkitBackdropFilter: "blur(14px)",
             }}
             onClick={dismiss}
           />
 
-          {/* Card */}
           <motion.div
-            className="relative z-10 w-full flex flex-col overflow-hidden"
-            style={{
-              maxWidth: 460,
-              background: "rgba(11,13,26,0.97)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 28,
-              boxShadow:
-                "0 0 0 1px rgba(255,255,255,0.04), 0 40px 100px rgba(0,0,0,0.65), 0 0 80px rgba(91,33,182,0.14)",
-            }}
-            initial={{ opacity: 0, scale: 0.9, y: 24 }}
+            className="relative z-10 flex w-full max-w-[500px] flex-col overflow-hidden rounded-3xl border border-white/[0.08] bg-[#0b0f1d]/98 shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
+            initial={{ opacity: 0, scale: 0.92, y: 24 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 16 }}
+            exit={{ opacity: 0, scale: 0.94, y: 16 }}
             transition={{ type: "spring", stiffness: 280, damping: 24 }}
           >
-            {/* Close */}
             <button
+              type="button"
               onClick={dismiss}
-              className="absolute top-4 right-4 z-20 flex items-center justify-center w-7 h-7 rounded-full"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#52525b" }}
+              className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-500 transition hover:bg-white/[0.08] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
             >
-              <X size={13} />
+              <X size={15} />
             </button>
 
-            {/* Step progress bar */}
-            <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "rgba(255,255,255,0.05)" }}>
+            <div className="absolute left-0 right-0 top-0 h-0.5 bg-white/[0.05]">
               <motion.div
                 className="h-full rounded-full"
-                style={{ background: current.accent }}
-                animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
+                style={{ background: deck.accent }}
+                animate={{ width: `${((deckIndex + 1) / deckSteps.length) * 100}%` }}
                 transition={{ duration: 0.35, ease: "easeOut" }}
               />
             </div>
 
-            {/* Content */}
-            <div className="px-8 pt-10 pb-8">
-              {/* Wisp + icon row */}
-              <div className="flex items-end justify-center gap-4 mb-7">
-                <WispMascot size={90} mood={current.mood} quote={current.quote} />
-                {IconComp && (
-                  <motion.div
-                    key={current.id + "-icon"}
-                    initial={{ opacity: 0, scale: 0.6, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ delay: 0.12, type: "spring", stiffness: 300, damping: 20 }}
-                    className="flex items-center justify-center w-14 h-14 rounded-2xl mb-3"
-                    style={{
-                      background: current.accentBg,
-                      border: `1px solid ${current.accentBorder}`,
-                    }}
-                  >
-                    <IconComp size={24} color={current.accent} strokeWidth={1.8} />
-                  </motion.div>
-                )}
+            <div className="px-7 pb-7 pt-9">
+              <div className="mb-7 flex items-end justify-center gap-4">
+                <WispMascot size={88} mood={deck.mood} />
+                <motion.div
+                  key={deck.id}
+                  initial={{ opacity: 0, scale: 0.7, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: 0.1, type: "spring", stiffness: 320, damping: 22 }}
+                  className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
+                  style={{
+                    background: deck.accentBg,
+                    border: `1px solid ${deck.accentBorder}`,
+                  }}
+                >
+                  <DeckIcon size={24} color={deck.accent} strokeWidth={1.8} />
+                </motion.div>
               </div>
 
-              {/* Text */}
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={current.id}
-                  initial={{ opacity: 0, x: direction * 30 }}
+                  key={deck.id}
+                  initial={{ opacity: 0, x: direction * 28 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: direction * -30 }}
+                  exit={{ opacity: 0, x: direction * -28 }}
                   transition={{ duration: 0.22, ease: "easeOut" }}
                 >
-                  <p
-                    className="text-center mb-1 font-semibold tracking-wide uppercase"
-                    style={{ fontSize: 10, color: current.accent, letterSpacing: "0.18em" }}
-                  >
-                    {current.subtitle}
+                  <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: deck.accent }}>
+                    {deck.subtitle}
                   </p>
-                  <h2
-                    className="text-center font-extrabold tracking-[-0.025em] mb-4"
-                    style={{
-                      fontSize: 24,
-                      background: "linear-gradient(120deg, #ffffff, #b4a8f0)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}
-                  >
-                    {current.title}
+                  <h2 className="mb-4 text-center text-2xl font-extrabold tracking-tight text-zinc-50">
+                    {deck.title}
                   </h2>
-                  <p
-                    className="text-center leading-relaxed"
-                    style={{ fontSize: 14, color: "#71717a", lineHeight: 1.7 }}
-                  >
-                    {current.body}
+                  <p className="mx-auto max-w-[410px] text-center text-sm leading-7 text-zinc-500">
+                    {deck.body}
                   </p>
+
+                  <div className="mt-6 grid gap-2">
+                    {deck.points.map((point) => (
+                      <div key={point} className="flex min-h-10 items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 text-sm text-zinc-300">
+                        <Check size={15} style={{ color: deck.accent }} />
+                        <span>{point}</span>
+                      </div>
+                    ))}
+                  </div>
                 </motion.div>
               </AnimatePresence>
 
-              {/* Step dots */}
-              <div className="flex items-center justify-center gap-1.5 mt-7 mb-7">
-                {steps.map((_, i) => (
-                  <button key={i} onClick={() => go(i)}>
+              <div className="mb-6 mt-7 flex items-center justify-center gap-1.5">
+                {deckSteps.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`Go to intro slide ${i + 1}`}
+                    className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                    onClick={() => goDeck(i)}
+                  >
                     <motion.div
                       className="rounded-full"
                       animate={{
-                        width: i === step ? 20 : 6,
-                        background: i === step ? current.accent : "rgba(255,255,255,0.12)",
+                        width: i === deckIndex ? 22 : 6,
                         height: 6,
+                        background: i === deckIndex ? deck.accent : "rgba(255,255,255,0.14)",
                       }}
                       transition={{ duration: 0.25, ease: "easeOut" }}
                     />
@@ -249,63 +414,167 @@ export default function OnboardingModal() {
                 ))}
               </div>
 
-              {/* Navigation */}
               <div className="flex items-center gap-3">
-                {!isFirst && (
-                  <motion.button
-                    onClick={() => go(step - 1)}
-                    className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      color: "#71717a",
-                    }}
-                    whileHover={{ background: "rgba(255,255,255,0.09)", color: "#a1a1aa" }}
-                    whileTap={{ scale: 0.95 }}
+                {!isFirstDeck ? (
+                  <button
+                    type="button"
+                    onClick={() => goDeck(deckIndex - 1)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-500 transition hover:bg-white/[0.08] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                   >
                     <ChevronLeft size={16} />
-                  </motion.button>
-                )}
+                  </button>
+                ) : null}
 
-                <motion.button
-                  onClick={isLast ? dismiss : () => go(step + 1)}
-                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl font-semibold text-sm"
+                <button
+                  type="button"
+                  onClick={isLastDeck ? startTour : () => goDeck(deckIndex + 1)}
+                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                   style={{
-                    background: current.accentBg,
-                    border: `1px solid ${current.accentBorder}`,
-                    color: current.accent,
+                    background: deck.accentBg,
+                    borderColor: deck.accentBorder,
+                    color: deck.accent,
                   }}
-                  whileHover={{
-                    background: isLast
-                      ? "rgba(139,92,246,0.2)"
-                      : current.accentBg.replace("0.08", "0.14"),
-                  }}
-                  whileTap={{ scale: 0.97 }}
                 >
-                  {isLast ? (
-                    "Let's go →"
+                  {isLastDeck ? (
+                    <>
+                      Start product tour
+                      <MousePointer2 size={15} />
+                    </>
                   ) : (
                     <>
                       Next
-                      <ChevronRight size={14} />
+                      <ChevronRight size={15} />
                     </>
                   )}
-                </motion.button>
+                </button>
               </div>
 
-              {isFirst && (
-                <button
-                  onClick={dismiss}
-                  className="w-full mt-3 text-center"
-                  style={{ fontSize: 12, color: "#3f3f46" }}
-                >
-                  Skip tour
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={dismiss}
+                className="mt-3 w-full text-center text-xs text-zinc-600 transition hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                Skip for now
+              </button>
             </div>
           </motion.div>
         </motion.div>
-      )}
+      ) : null}
+
+      {visible && phase === "tour" ? (
+        <motion.div
+          className="fixed inset-0 z-[210]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          {targetRect ? (
+            <motion.div
+              className="pointer-events-none fixed rounded-2xl border-2"
+              style={{
+                top: targetRect.top,
+                left: targetRect.left,
+                width: targetRect.width,
+                height: targetRect.height,
+                borderColor: currentTour.accent,
+                boxShadow: `0 0 0 9999px rgba(4,5,12,0.74), 0 0 42px ${currentTour.accent}55`,
+              }}
+              layout
+              transition={{ type: "spring", stiffness: 330, damping: 34 }}
+            />
+          ) : (
+            <div className="fixed inset-0 bg-[rgba(4,5,12,0.74)]" />
+          )}
+
+          <motion.div
+            key={currentTour.id}
+            className="fixed rounded-2xl border border-white/[0.08] bg-[#0b1020]/98 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+            style={tipStyle}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
+                  style={{
+                    background: `${currentTour.accent}18`,
+                    borderColor: `${currentTour.accent}44`,
+                    color: currentTour.accent,
+                  }}
+                >
+                  <TourIcon size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+                    Step {tourIndex + 1} of {tourSteps.length}
+                  </p>
+                  <h3 className="mt-0.5 text-base font-bold text-zinc-50">{currentTour.title}</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={dismiss}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <p className="text-sm leading-6 text-zinc-400">{currentTour.body}</p>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goTour(tourIndex - 1)}
+                className="flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <ChevronLeft size={14} />
+                {isFirstTour ? "Deck" : "Back"}
+              </button>
+
+              <button
+                type="button"
+                onClick={isLastTour ? dismiss : () => goTour(tourIndex + 1)}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                style={{
+                  background: `${currentTour.accent}18`,
+                  borderColor: `${currentTour.accent}44`,
+                  color: currentTour.accent,
+                }}
+              >
+                {isLastTour ? (
+                  <>
+                    Finish tour
+                    <ShieldCheck size={14} />
+                  </>
+                ) : (
+                  <>
+                    Next section
+                    <ArrowRight size={14} />
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center gap-1.5">
+              {tourSteps.map((item, index) => (
+                <span
+                  key={item.id}
+                  className="h-1.5 rounded-full"
+                  style={{
+                    width: index === tourIndex ? 22 : 6,
+                    background: index === tourIndex ? currentTour.accent : "rgba(255,255,255,0.14)",
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
     </AnimatePresence>
   );
 }
