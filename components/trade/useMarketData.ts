@@ -17,18 +17,15 @@ async function apiGet<T>(path: string, params: Record<string, string | number | 
 export function useMarkets(mode: MarketMode) {
   const [tickers, setTickers] = useState<Ticker24h[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [poolBySymbol, setPoolBySymbol] = useState<Map<string, string>>(new Map());
 
   const refresh = useCallback(async () => {
     try {
       setError(null);
-      const data = await apiGet<{ tickers: (Ticker24h & { poolId: string })[] }>("/api/dex/markets", { mode });
+      const data = await apiGet<{ tickers: Ticker24h[] }>("/api/dex/markets", { mode });
       setTickers(data.tickers);
-      setPoolBySymbol(new Map(data.tickers.map((t) => [t.symbol, t.poolId])));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tickers");
       setTickers(null);
-      setPoolBySymbol(new Map());
     }
   }, [mode]);
 
@@ -55,7 +52,7 @@ export function useMarkets(mode: MarketMode) {
     return m;
   }, [tickers]);
 
-  return { tickers, bySymbol, poolBySymbol, error, refresh };
+  return { tickers, bySymbol, error, refresh };
 }
 
 export function useCandles(opts: { poolId: string; interval: string }) {
@@ -103,3 +100,47 @@ export function useCandles(opts: { poolId: string; interval: string }) {
   return { candles, error, loading, refresh };
 }
 
+// Fetches the GeckoTerminal pool ID for a single symbol on demand.
+// Only fires when a symbol is actively selected — not for all 34 tokens upfront.
+export function usePoolId(symbol: string) {
+  const [poolId, setPoolId] = useState("");
+
+  useEffect(() => {
+    if (!symbol) return;
+    let cancelled = false;
+    fetch(`/api/dex/pool?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { poolId?: string }) => { if (!cancelled) setPoolId(j.poolId ?? ""); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  return poolId;
+}
+
+// Polls the server-side live price endpoint every 3s.
+// Returns a map of symbol → live USD price.
+export function useLivePrice(symbols: string[]) {
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const symbolKey = symbols.slice().sort().join(",");
+
+  useEffect(() => {
+    if (!symbolKey) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/price/live?symbols=${symbolKey}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as { prices: Record<string, number> };
+        if (!cancelled) setPrices(json.prices);
+      } catch { /* silent — fallback to ticker price */ }
+    };
+
+    void poll();
+    const t = setInterval(() => void poll(), 3_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [symbolKey]);
+
+  return prices;
+}

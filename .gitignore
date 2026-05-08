@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# local agent context
+AGENTS.md
+CONVERSATION_CONTEXT.md

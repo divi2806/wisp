@@ -34,7 +34,7 @@ const DEFAULT_HEADERS = {
 
 export async function fetchTokenTopPool(mint: string): Promise<GeckoPool | null> {
   const url = `${BASE}/networks/solana/tokens/${encodeURIComponent(mint)}/pools?page=1`;
-  const res = await fetch(url, { next: { revalidate: 120 }, headers: DEFAULT_HEADERS });
+  const res = await fetch(url, { next: { revalidate: 300 }, headers: DEFAULT_HEADERS });
   if (res.status === 429) throw new Error("GeckoTerminal rate limited (429)");
   if (!res.ok) throw new Error(`Gecko token pools failed (${res.status})`);
   const json = (await res.json()) as { data?: GeckoPool[] };
@@ -66,7 +66,7 @@ export async function fetchPoolOHLCV(opts: {
   // GeckoTerminal max: 1000 candles; cap per timeframe to stay well under limits
   const safeLimit = Math.min(limit, timeframe === "minute" ? 500 : timeframe === "hour" ? 300 : 100);
   const url = `${BASE}/networks/solana/pools/${encodeURIComponent(address)}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=${safeLimit}`;
-  const res = await fetchWithRetry(url, { next: { revalidate: 20 }, headers: DEFAULT_HEADERS });
+  const res = await fetchWithRetry(url, { next: { revalidate: 60 }, headers: DEFAULT_HEADERS });
   if (!res.ok) {
     let detail = "";
     try { const t = await res.text(); detail = t.slice(0, 120); } catch { /* ignore */ }

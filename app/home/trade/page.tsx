@@ -11,7 +11,7 @@ import { CandlesChart, type Indicators } from "@/components/trade/CandlesChart";
 import { OrderPanel } from "@/components/trade/OrderPanel";
 import { DrawingToolbar, type DrawingTool } from "@/components/trade/DrawingToolbar";
 import { IndicatorsPanel } from "@/components/trade/IndicatorsPanel";
-import { useCandles, useMarkets } from "@/components/trade/useMarketData";
+import { useCandles, useLivePrice, useMarkets, usePoolId } from "@/components/trade/useMarketData";
 import type { MarketMode } from "@/components/trade/types";
 import { usePaperTrade } from "@/components/trade/usePaperTrade";
 import { WispTradeChat, type TradeContext as WispTradeContext } from "@/components/trade/WispTradeChat";
@@ -157,7 +157,7 @@ export default function TradePage() {
   const [indicators, setIndicators] = useState<Indicators>({});
   const [showIndicators, setShowIndicators] = useState(false);
 
-  const { tickers, bySymbol, poolBySymbol, error: marketsError } = useMarkets("spot");
+  const { tickers, bySymbol, error: marketsError } = useMarkets("spot");
 
   const defaultSymbol = useMemo(() => tickers?.[0]?.symbol ?? "SOL", [tickers]);
   const [symbol, setSymbol]   = useState<string>(defaultSymbol);
@@ -173,11 +173,13 @@ export default function TradePage() {
   const [side, setSide]             = useState<"buy" | "sell">("buy");
   const orderRef  = useRef<HTMLDivElement>(null);
 
-  const poolId = poolBySymbol.get(activeSymbol) ?? "";
+  const poolId = usePoolId(activeSymbol);
   const { candles, loading: candlesLoading, error: candlesError } = useCandles({ poolId, interval });
 
-  const ticker   = bySymbol.get(activeSymbol);
-  const livePrice = ticker ? Number(ticker.lastPrice) : null;
+  const ticker = bySymbol.get(activeSymbol);
+  const jupiterPrices = useLivePrice(availableSymbols);
+  // Jupiter price is real-time (3s poll, no rate limits). Fall back to GeckoTerminal ticker if not yet loaded.
+  const livePrice = jupiterPrices[activeSymbol] ?? (ticker ? Number(ticker.lastPrice) : null);
 
   const paperAcct = usePaperTrade(paper);
 

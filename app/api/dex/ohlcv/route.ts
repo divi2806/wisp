@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const cached = (g.__wispDexOhlcvCache as Map<string, { atMs: number; body: unknown }> | undefined) ?? new Map();
     g.__wispDexOhlcvCache = cached;
     const hit = cached.get(cacheKey);
-    if (hit && now - hit.atMs < 20_000) {
+    if (hit && now - hit.atMs < 90_000) {
       return NextResponse.json(hit.body, { status: 200 });
     }
 
