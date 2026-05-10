@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Send, X } from "lucide-react";
 import WispMascot, { type WispMood } from "@/components/WispMascot";
 import { MiniCandleViz } from "@/components/trade/MiniCandleViz";
@@ -151,6 +151,7 @@ export function WispPredictionChat(props: {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [msgs, setMsgs] = useState<Msg[]>(() => [
     {
       id: crypto.randomUUID(),
@@ -212,18 +213,18 @@ export function WispPredictionChat(props: {
     <>
       <motion.button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-[120] flex h-[76px] w-[76px] items-center justify-center rounded-[28px] focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080a16]"
+        className="fixed bottom-4 right-4 z-[120] flex h-14 w-14 items-center justify-center rounded-2xl focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080a16] sm:bottom-6 sm:right-6 sm:h-[76px] sm:w-[76px] sm:rounded-[28px]"
         style={{
           background: "radial-gradient(circle at 30% 25%, rgba(251,113,133,0.18), rgba(13,16,32,0.9) 56%, rgba(13,16,32,0.98) 100%)",
           boxShadow: "0 22px 60px rgba(0,0,0,0.62), 0 0 90px rgba(251,113,133,0.14)",
         }}
-        animate={{ y: [0, -4, 0] }}
-        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+        animate={reduceMotion ? undefined : { y: [0, -4, 0] }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.98 }}
         aria-label="Open Wisp prediction chat"
       >
-        <WispMascot size={40} mood={mood} />
+        <WispMascot size={34} mood={mood} />
       </motion.button>
 
       <AnimatePresence>
@@ -231,16 +232,16 @@ export function WispPredictionChat(props: {
           <motion.div className="fixed inset-0 z-[140]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <button className="absolute inset-0 h-full w-full cursor-default bg-black/60" onClick={() => setOpen(false)} aria-label="Close Wisp prediction chat overlay" />
             <motion.div
-              className="absolute bottom-6 right-6 flex h-[72vh] min-h-[560px] max-h-[820px] w-[460px] max-w-[94vw] flex-col overflow-hidden rounded-[32px]"
+              className="absolute bottom-3 right-3 flex h-[78vh] min-h-[420px] max-h-[820px] w-[460px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-3xl sm:bottom-6 sm:right-6 sm:h-[72vh] sm:min-h-[560px] sm:max-w-[94vw] sm:rounded-[32px]"
               style={{
                 background: "rgba(11,13,26,0.96)",
                 border: "1px solid rgba(255,255,255,0.08)",
                 boxShadow: "0 30px 80px rgba(0,0,0,0.65)",
               }}
-              initial={{ y: 18, scale: 0.98, opacity: 0 }}
-              animate={{ y: 0, scale: 1, opacity: 1 }}
-              exit={{ y: 18, scale: 0.98, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 24 }}
+              initial={reduceMotion ? { opacity: 0 } : { y: 18, scale: 0.98, opacity: 0 }}
+              animate={reduceMotion ? { opacity: 1 } : { y: 0, scale: 1, opacity: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { y: 18, scale: 0.98, opacity: 0 }}
+              transition={reduceMotion ? { duration: 0.12 } : { type: "spring", stiffness: 280, damping: 24 }}
             >
               <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
                 <div className="relative h-[38px] w-[30px]">
@@ -298,7 +299,7 @@ export function WispPredictionChat(props: {
               </div>
 
               <div className="border-t border-white/5 px-5 py-4">
-                <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-black/15 px-3.5 py-2.5">
+                <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-black/15 px-3.5 py-2.5 focus-within:border-cyan-300/40 focus-within:ring-2 focus-within:ring-cyan-300/25">
                   <label htmlFor="prediction-wisp-input" className="sr-only">Ask Wisp about this prediction market</label>
                   <textarea
                     id="prediction-wisp-input"
@@ -306,7 +307,7 @@ export function WispPredictionChat(props: {
                     onChange={(event) => setInput(event.target.value)}
                     placeholder="Ask if YES is overpriced, or about your paper shares..."
                     rows={1}
-                    className="flex-1 resize-none bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-600 focus-visible:ring-0"
+                    className="flex-1 resize-none bg-transparent text-[14px] text-zinc-100 focus-visible:outline-none placeholder:text-zinc-600"
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();

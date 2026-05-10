@@ -19,6 +19,26 @@
   --green:         #22c55e;
   --red:           #f87171;
   --amber:         #f59e0b;
+
+  --dash-bg: #080b14;
+  --dash-bg-rgb: 8, 11, 20;
+  --dash-bg-soft: #0b1020;
+  --dash-shell: linear-gradient(180deg, #0c0f22 0%, #080a16 100%);
+  --dash-panel: #0d1020;
+  --dash-panel-rgb: 13, 16, 32;
+  --dash-panel-strong: #11172a;
+  --dash-panel-soft: rgba(255,255,255,0.04);
+  --dash-field: rgba(255,255,255,0.035);
+  --dash-border: rgba(255,255,255,0.07);
+  --dash-border-strong: rgba(255,255,255,0.13);
+  --dash-text: #e4e4e7;
+  --dash-text-strong: #fafafa;
+  --dash-muted: #a1a1aa;
+  --dash-faint: #52525b;
+  --dash-subtle: #27272a;
+  --dash-focus: #67e8f9;
+  --dash-shadow: 0 18px 44px rgba(0,0,0,0.22);
+  --dash-glow: rgba(139,92,246,0.18);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

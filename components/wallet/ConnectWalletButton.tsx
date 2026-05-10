@@ -78,7 +78,6 @@ export default function ConnectWalletButton({
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const connectRef = useRef(connect);
-  connectRef.current = connect;
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<WalletName | null>(null);
@@ -97,6 +96,10 @@ export default function ConnectWalletButton({
       uniqueWallets(wallets).filter((item) => !isConnectable(item.readyState)),
     [wallets]
   );
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -170,9 +173,9 @@ export default function ConnectWalletButton({
   }
 
   const baseButtonClass = cx(
-    "inline-flex items-center justify-center gap-2 rounded-xl border font-semibold text-slate-100 shadow-[0_14px_36px_rgba(0,0,0,0.28)] transition",
-    "border-white/10 bg-[#101523]/95 hover:border-cyan-300/45 hover:bg-[#121b2b]",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080b14]",
+    "inline-flex items-center justify-center gap-2 rounded-xl border font-semibold shadow-[var(--dash-shadow)] transition",
+    "border-[var(--dash-border)] bg-[var(--dash-panel-strong)] text-[var(--dash-text)] hover:border-cyan-300/45",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dash-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--dash-bg)]",
     variant === "panel" ? "h-10 px-4 text-xs" : "h-11 px-4 text-sm",
     className
   );
@@ -210,19 +213,19 @@ export default function ConnectWalletButton({
       )}
 
       {accountMenuOpen && connected && address ? (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-[130] w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020]/98 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-          <div className="border-b border-white/8 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[130] w-72 overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <div className="border-b border-[var(--dash-border)] px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--dash-faint)]">
               Connected
             </p>
-            <p className="mt-1 truncate font-mono text-xs text-slate-200">
+            <p className="mt-1 truncate font-mono text-xs text-[var(--dash-text)]">
               {address}
             </p>
           </div>
           <div className="p-2">
             <button
               type="button"
-              className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-slate-200 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+              className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-[var(--dash-text)] transition hover:bg-[var(--dash-panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dash-focus)]"
               onClick={handleCopy}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -232,7 +235,7 @@ export default function ConnectWalletButton({
               href={`https://solscan.io/account/${address}`}
               target="_blank"
               rel="noreferrer"
-              className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-slate-200 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+              className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-[var(--dash-text)] transition hover:bg-[var(--dash-panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dash-focus)]"
             >
               <ExternalLink size={16} />
               View on Solscan
@@ -267,17 +270,17 @@ export default function ConnectWalletButton({
             role="dialog"
             aria-modal="true"
             aria-labelledby="wallet-dialog-title"
-            className="relative z-[121] w-[min(430px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1d]/98 shadow-[0_28px_90px_rgba(0,0,0,0.58)] backdrop-blur-xl"
+            className="relative z-[121] w-[min(430px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-[var(--dash-shadow)] backdrop-blur-xl"
           >
-            <div className="flex items-start justify-between gap-4 border-b border-white/8 px-5 py-4">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--dash-border)] px-5 py-4">
               <div>
                 <p
                   id="wallet-dialog-title"
-                  className="text-base font-bold text-slate-50"
+                  className="text-base font-bold text-[var(--dash-text-strong)]"
                 >
                   Connect Solana Wallet
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
+                <p className="mt-1 text-xs leading-5 text-[var(--dash-faint)]">
                   Read-only by default. Wisp only asks for signatures when a
                   transaction flow needs it.
                 </p>
@@ -285,7 +288,7 @@ export default function ConnectWalletButton({
               <button
                 type="button"
                 aria-label="Close"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 text-slate-400 transition hover:bg-white/6 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--dash-border)] text-[var(--dash-faint)] transition hover:bg-[var(--dash-panel-soft)] hover:text-[var(--dash-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dash-focus)]"
                 onClick={() => {
                   setWalletModalOpen(false);
                   setPendingWallet(null);
@@ -349,7 +352,7 @@ export default function ConnectWalletButton({
               />
             </div>
 
-            <div className="flex items-center gap-2 border-t border-white/8 px-5 py-3 text-xs text-slate-500">
+            <div className="flex items-center gap-2 border-t border-[var(--dash-border)] px-5 py-3 text-xs text-[var(--dash-faint)]">
               <ShieldCheck size={14} className="text-emerald-300" />
               Public key access only after connect.
             </div>
@@ -375,7 +378,7 @@ function WalletSection({
 }) {
   return (
     <section className="mb-4 last:mb-0">
-      <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--dash-faint)]">
         {title}
       </p>
 
@@ -391,7 +394,7 @@ function WalletSection({
                 key={String(item.adapter.name)}
                 type="button"
                 className={cx(
-                  "flex min-h-14 w-full items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2 text-left transition",
+                  "flex min-h-14 w-full items-center gap-3 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-field)] px-3 py-2 text-left transition",
                   "hover:border-cyan-300/35 hover:bg-cyan-300/[0.06]",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70",
                   !connectable && !url && "cursor-not-allowed opacity-60"
@@ -400,6 +403,8 @@ function WalletSection({
                 onClick={() => onSelect(item)}
               >
                 {item.adapter.icon ? (
+                  // Wallet adapters may provide data or extension URLs that next/image cannot normalize.
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt=""
                     className="h-8 w-8 shrink-0 rounded-lg"
@@ -412,10 +417,10 @@ function WalletSection({
                 )}
 
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-slate-100">
+                  <span className="block truncate text-sm font-semibold text-[var(--dash-text)]">
                     {String(item.adapter.name)}
                   </span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
+                  <span className="mt-0.5 block text-xs text-[var(--dash-faint)]">
                     {readinessLabel(item.readyState)}
                   </span>
                 </span>
@@ -426,14 +431,14 @@ function WalletSection({
                     className="shrink-0 animate-spin text-cyan-200"
                   />
                 ) : !connectable && url ? (
-                  <ExternalLink size={16} className="shrink-0 text-slate-500" />
+                  <ExternalLink size={16} className="shrink-0 text-[var(--dash-faint)]" />
                 ) : null}
               </button>
             );
           })}
         </div>
       ) : (
-        <p className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 text-xs leading-5 text-slate-500">
+        <p className="rounded-xl border border-[var(--dash-border)] bg-[var(--dash-field)] px-3 py-3 text-xs leading-5 text-[var(--dash-faint)]">
           {emptyText}
         </p>
       )}

@@ -6,16 +6,16 @@ import WispMascot from "@/components/WispMascot";
 export default function WispPageBar() {
   return (
     <div
-      className="flex items-center gap-3 px-5 flex-shrink-0"
-      style={{ height: 58, borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+      className="flex shrink-0 items-center gap-3 px-5"
+      style={{ height: 58, borderBottom: "1px solid var(--dash-border)", background: "rgba(var(--dash-bg-rgb),0.72)", backdropFilter: "blur(14px)" }}
     >
       <div style={{ width: 30, height: 38, flexShrink: 0, position: "relative" }}>
         <WispMascot size={30} mood="idle" />
       </div>
       <div className="flex items-center gap-2">
-        <span className="font-semibold" style={{ fontSize: 14, color: "#e4e4e7" }}>Wisp</span>
-        <span style={{ fontSize: 11, color: "#3f3f46" }}>·</span>
-        <span style={{ fontSize: 11, color: "#52525b" }}>DeFi Intelligence</span>
+        <span className="font-semibold" style={{ fontSize: 14, color: "var(--dash-text)" }}>Wisp</span>
+        <span style={{ fontSize: 11, color: "var(--dash-faint)" }}>·</span>
+        <span style={{ fontSize: 11, color: "var(--dash-faint)" }}>DeFi Intelligence</span>
       </div>
       <div
         className="flex items-center gap-1.5 ml-1 px-2.5 py-1 rounded-full"
@@ -29,6 +29,7 @@ export default function WispPageBar() {
         />
         <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600 }}>Online</span>
       </div>
+
     </div>
   );
 }

@@ -1,19 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  Clock3,
+  BarChart3,
+  Bitcoin,
+  BriefcaseBusiness,
+  ChartSpline,
+  CircleDollarSign,
+  Expand,
+  History,
+  MoreVertical,
+  PieChart,
+  ReceiptText,
   RefreshCw,
   RotateCcw,
+  ShoppingCart,
   Signal,
+  SlidersHorizontal,
   Sparkles,
+  Target,
   TrendingUp,
-  Wallet,
   X,
 } from "lucide-react";
 import { CandlesChart } from "@/components/trade/CandlesChart";
@@ -21,6 +29,40 @@ import { usePredictionMarkets } from "@/components/prediction/usePredictionMarke
 import { usePredictionPaper } from "@/components/prediction/usePredictionPaper";
 import { WispPredictionChat } from "@/components/prediction/WispPredictionChat";
 import type { PolymarketReference, PredictionAction, PredictionMarket, PredictionSide } from "@/components/prediction/types";
+
+type SurfaceVars = CSSProperties & Record<`--${string}`, string>;
+
+const pmSurfaceVars: SurfaceVars = {
+  "--pm-bg": "#040914",
+  "--pm-bg-soft": "#07111f",
+  "--pm-panel": "rgba(8,17,31,0.88)",
+  "--pm-panel-strong": "rgba(10,22,39,0.96)",
+  "--pm-panel-soft": "rgba(255,255,255,0.035)",
+  "--pm-chart": "rgba(3,11,22,0.78)",
+  "--pm-field": "rgba(4,12,24,0.82)",
+  "--pm-border": "rgba(148,163,184,0.13)",
+  "--pm-border-strong": "rgba(148,163,184,0.22)",
+  "--pm-text": "#f4f4f5",
+  "--pm-muted": "#a1a1aa",
+  "--pm-faint": "#52525b",
+  "--pm-focus": "#67e8f9",
+  "--pm-shadow": "inset 0 1px 0 rgba(255,255,255,0.035), 0 18px 44px rgba(0,0,0,0.26)",
+  "--pm-yes": "#5eead4",
+  "--pm-yes-strong": "#34d399",
+  "--pm-yes-bg": "rgba(20,184,166,0.10)",
+  "--pm-yes-border": "rgba(45,212,191,0.26)",
+  "--pm-no": "#fda4af",
+  "--pm-no-strong": "#fb7185",
+  "--pm-no-bg": "rgba(244,63,94,0.11)",
+  "--pm-no-border": "rgba(251,113,133,0.26)",
+};
+
+const panelClass = "rounded-2xl border border-[var(--pm-border)] bg-[var(--pm-panel)] shadow-[var(--pm-shadow)] backdrop-blur-xl";
+const focusClass = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pm-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--pm-bg)]";
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function money(value: number | null | undefined, digits = 2) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "--";
@@ -60,82 +102,195 @@ function sidePrice(market: PredictionMarket, side: PredictionSide) {
   return side === "yes" ? market.yesPrice : market.noPrice;
 }
 
-function activePositionValue(market: PredictionMarket, side: PredictionSide, shares: number) {
-  return shares * sidePrice(market, side);
-}
-
 function statusTone(status: string) {
-  if (status === "live") return { label: "Live", color: "#22c55e", bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.22)" };
-  if (status === "connecting") return { label: "Connecting", color: "#fbbf24", bg: "rgba(251,191,36,0.10)", border: "rgba(251,191,36,0.22)" };
-  if (status === "error") return { label: "Socket error", color: "#f87171", bg: "rgba(248,113,113,0.10)", border: "rgba(248,113,113,0.22)" };
-  return { label: "Stale", color: "#fbbf24", bg: "rgba(251,191,36,0.10)", border: "rgba(251,191,36,0.22)" };
+  if (status === "live") return { label: "Live", color: "#059669", bg: "rgba(16,185,129,0.12)", border: "rgba(5,150,105,0.22)" };
+  if (status === "connecting") return { label: "Connecting", color: "#d97706", bg: "rgba(245,158,11,0.12)", border: "rgba(217,119,6,0.24)" };
+  if (status === "error") return { label: "Socket error", color: "#e11d48", bg: "rgba(244,63,94,0.12)", border: "rgba(225,29,72,0.24)" };
+  return { label: "Stale", color: "#d97706", bg: "rgba(245,158,11,0.12)", border: "rgba(217,119,6,0.24)" };
 }
 
-function MarketCard(props: {
-  market: PredictionMarket;
-  active: boolean;
-  onClick: () => void;
-}) {
+function StatusBadge(props: { status: string }) {
+  const tone = statusTone(props.status);
+  return (
+    <span
+      className="inline-flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold"
+      style={{ color: tone.color, background: tone.bg, borderColor: tone.border }}
+      aria-live="polite"
+    >
+      <Signal size={14} aria-hidden="true" />
+      Binance {tone.label}
+    </span>
+  );
+}
+
+function StatCell(props: { label: string; value: ReactNode; tone?: "yes" | "no" | "default" }) {
+  const { label, value, tone = "default" } = props;
+  return (
+    <div className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2 xl:py-1.5">
+      <p className="text-xs text-[var(--pm-faint)]">{label}</p>
+      <p className={cx("mt-1 truncate font-mono text-sm font-semibold", tone === "yes" && "text-[var(--pm-yes)]", tone === "no" && "text-[var(--pm-no)]", tone === "default" && "text-[var(--pm-text)]")}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AssetBadge(props: { asset: string; compact?: boolean }) {
+  const size = props.compact ? "h-8 w-8" : "h-10 w-10";
+  if (props.asset === "BTC") {
+    return (
+      <span className={cx("flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-600 text-white shadow-[0_0_24px_rgba(245,158,11,0.18)]", size)}>
+        <Bitcoin size={props.compact ? 17 : 22} strokeWidth={2.5} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return (
+    <span className={cx("flex shrink-0 items-center justify-center rounded-full bg-[#101626] shadow-[0_0_24px_rgba(45,212,191,0.13)]", size)} aria-label="SOL">
+      <span className="grid gap-0.5">
+        <span className="block h-1.5 w-5 rounded-full bg-gradient-to-r from-teal-300 via-purple-400 to-fuchsia-400" />
+        <span className="block h-1.5 w-5 rounded-full bg-gradient-to-r from-fuchsia-400 via-purple-400 to-teal-300" />
+        <span className="block h-1.5 w-5 rounded-full bg-gradient-to-r from-teal-300 via-purple-400 to-fuchsia-400" />
+      </span>
+    </span>
+  );
+}
+
+function MiniSparkline(props: { candles: PredictionMarket["candles"]; id: string }) {
+  const spark = useMemo(() => {
+    const closes = props.candles.slice(-34).map((candle) => candle.close).filter(Number.isFinite);
+    if (closes.length < 2) {
+      return { points: "0,24 220,24", last: { x: 220, y: 24 } };
+    }
+
+    const min = Math.min(...closes);
+    const max = Math.max(...closes);
+    const range = Math.max(max - min, max * 0.0008, 1e-9);
+    const points = closes.map((close, index) => {
+      const x = (index / (closes.length - 1)) * 220;
+      const y = 38 - ((close - min) / range) * 28;
+      return { x, y };
+    });
+    return {
+      points: points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" "),
+      last: points[points.length - 1] ?? { x: 220, y: 24 },
+    };
+  }, [props.candles]);
+
+  const gradientId = `sparkline-${props.id}`;
+
+  return (
+    <svg viewBox="0 0 220 44" preserveAspectRatio="none" className="h-12 w-full overflow-visible" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="0%" x2="100%" y1="0%" y2="0%">
+          <stop offset="0%" stopColor="#22c55e" />
+          <stop offset="58%" stopColor="#eab308" />
+          <stop offset="100%" stopColor="#fb4d5d" />
+        </linearGradient>
+      </defs>
+      <polyline
+        points={spark.points}
+        fill="none"
+        stroke={`url(#${gradientId})`}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.4"
+      />
+      <circle cx={spark.last.x} cy={spark.last.y} r="2.4" fill="#fb7185" />
+    </svg>
+  );
+}
+
+function OutcomeTile(props: { side: PredictionSide; value: number; large?: boolean; active?: boolean }) {
+  const yes = props.side === "yes";
+  return (
+    <div
+      className={cx(
+        "rounded-xl border bg-gradient-to-br px-3",
+        props.large ? "py-4" : "py-3",
+        yes
+          ? "border-[var(--pm-yes-border)] from-[rgba(20,184,166,0.16)] to-[rgba(20,184,166,0.045)]"
+          : "border-[var(--pm-no-border)] from-[rgba(244,63,94,0.15)] to-[rgba(244,63,94,0.045)]",
+        props.active && (yes ? "shadow-[0_0_0_1px_rgba(45,212,191,0.38)]" : "shadow-[0_0_0_1px_rgba(251,113,133,0.38)]"),
+      )}
+    >
+      <p className={cx("text-[11px] font-bold uppercase tracking-[0.12em]", yes ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>
+        {yes ? "YES" : "NO"}
+      </p>
+      <p className={cx("mt-1 font-mono font-black tracking-tight", props.large ? "text-3xl" : "text-xl", yes ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>
+        {odds(props.value)}
+      </p>
+    </div>
+  );
+}
+
+function MarketSelectorCard(props: { market: PredictionMarket; active: boolean; onClick: () => void }) {
   const { market, active, onClick } = props;
-  const tone = market.yesProbability >= 0.5 ? "#22c55e" : "#fb7185";
+  const moveUp = (market.changePct ?? 0) >= 0;
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className="min-h-[124px] rounded-2xl border p-4 text-left shadow-[0_18px_46px_rgba(0,0,0,0.20)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-      style={{
-        background: active ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.025)",
-        borderColor: active ? "rgba(125,211,252,0.36)" : "rgba(255,255,255,0.07)",
-        boxShadow: active ? "0 22px 60px rgba(8,145,178,0.12)" : undefined,
-      }}
+      className={cx(
+        "group relative min-h-[188px] overflow-hidden rounded-2xl border p-4 text-left transition-colors",
+        focusClass,
+        active
+          ? "border-cyan-300/30 bg-[rgba(8,20,37,0.96)]"
+          : "border-[var(--pm-border)] bg-[var(--pm-panel)] hover:border-[var(--pm-border-strong)] hover:bg-[var(--pm-panel-strong)]",
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-zinc-100">{market.label}</p>
-          <p className="mt-1 text-xs text-zinc-500">{market.durationMinutes}m rolling binary</p>
+      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <AssetBadge asset={market.asset} />
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-[var(--pm-text)]">{market.label}</p>
+            <p className="mt-0.5 text-xs text-[var(--pm-muted)]">{market.durationMinutes}m rolling binary</p>
+          </div>
         </div>
-        <span
-          className="shrink-0 rounded-full border px-2 py-1 font-mono text-[11px]"
-          style={{ color: statusTone(market.wsStatus).color, borderColor: statusTone(market.wsStatus).border, background: statusTone(market.wsStatus).bg }}
-        >
+        <span className="shrink-0 rounded-lg border border-[var(--pm-border)] bg-[var(--pm-field)] px-2.5 py-1.5 font-mono text-xs font-bold text-[var(--pm-yes)]">
           {timer(market.timeRemainingMs)}
         </span>
       </div>
-
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/70">YES</p>
-          <p className="mt-1 font-mono text-lg font-bold text-emerald-300">{odds(market.yesPrice)}</p>
-        </div>
-        <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.055] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300/70">NO</p>
-          <p className="mt-1 font-mono text-lg font-bold text-rose-300">{odds(market.noPrice)}</p>
-        </div>
+        <OutcomeTile side="yes" value={market.yesPrice} active={active} />
+        <OutcomeTile side="no" value={market.noPrice} active={active} />
       </div>
-
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: tone, width: `${market.yesProbability * 100}%` }}
-          transition={{ duration: 0.15 }}
-        />
+      <div className="mt-3">
+        <MiniSparkline candles={market.candles} id={market.key} />
       </div>
-      <div className="mt-2 flex items-center justify-between text-[11px]">
-        <span className="font-mono text-zinc-500">{price(market.livePrice, market.asset)}</span>
-        <span className="font-mono" style={{ color: (market.changePct ?? 0) >= 0 ? "#22c55e" : "#fb7185" }}>{pct(market.changePct)}</span>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="truncate font-mono text-sm text-[var(--pm-muted)]">{price(market.livePrice, market.asset)}</span>
+        <span className={cx("font-mono text-sm font-bold", moveUp ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{pct(market.changePct)}</span>
       </div>
     </button>
+  );
+}
+
+function QuoteBlock(props: { side: PredictionSide; value: number }) {
+  const yes = props.side === "yes";
+  return (
+    <div className={cx("rounded-xl border px-4 py-3", yes ? "border-[var(--pm-yes-border)] bg-[var(--pm-yes-bg)]" : "border-[var(--pm-no-border)] bg-[var(--pm-no-bg)]")}>
+      <p className={cx("text-[11px] font-bold uppercase tracking-[0.12em]", yes ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>
+        {yes ? "YES mark" : "NO mark"}
+      </p>
+      <p className={cx("mt-1 font-mono text-3xl font-black tracking-tight", yes ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{odds(props.value)}</p>
+    </div>
   );
 }
 
 function OrderTicket(props: {
   market: PredictionMarket;
   cashUSDC: number;
+  portfolioValue: number;
+  openPositions: number;
   yesShares: number;
   noShares: number;
   onSubmit: (args: { side: PredictionSide; action: PredictionAction; shares: number }) => void;
   onReset: () => void;
 }) {
-  const { market, cashUSDC, yesShares, noShares, onSubmit, onReset } = props;
+  const { market, cashUSDC, portfolioValue, openPositions, yesShares, noShares, onSubmit, onReset } = props;
   const [side, setSide] = useState<PredictionSide>("yes");
   const [action, setAction] = useState<PredictionAction>("buy");
   const [shares, setShares] = useState("");
@@ -147,8 +302,9 @@ function OrderTicket(props: {
   const maxPayout = Number.isFinite(shareAmount) && shareAmount > 0 ? shareAmount : 0;
   const maxProfit = maxPayout - notional;
   const heldShares = side === "yes" ? yesShares : noShares;
+  const marketReady = Boolean(market.startPrice && market.livePrice && market.timeRemainingMs > 0);
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErr(null);
     try {
@@ -161,40 +317,47 @@ function OrderTicket(props: {
   };
 
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4">
-        <div>
-          <p className="text-sm font-semibold text-zinc-100">Paper Ticket</p>
-          <p className="mt-1 text-xs text-zinc-500">Binary shares settle at $1 / $0</p>
+    <section className={cx(panelClass, "overflow-hidden")} aria-labelledby="paper-ticket-title">
+      <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
+        <div className="min-w-0">
+          <h2 id="paper-ticket-title" className="flex items-center gap-2 text-base font-bold text-[var(--pm-text)]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] text-[var(--pm-muted)]">
+              <ReceiptText size={16} aria-hidden="true" />
+            </span>
+            Paper Ticket
+          </h2>
+          <p className="mt-1 text-xs text-[var(--pm-faint)]">Paper shares settle at $1 or $0.</p>
         </div>
         <button
           type="button"
           onClick={onReset}
-          className="flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.06] px-3 text-xs font-semibold text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300 focus-visible:ring-2 focus-visible:ring-cyan-300"
+          className={cx("inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 text-xs font-semibold text-[var(--pm-muted)] hover:text-[var(--pm-text)]", focusClass)}
         >
-          <RotateCcw size={14} />
+          <RotateCcw size={14} aria-hidden="true" />
           Reset
         </button>
       </div>
 
-      <form onSubmit={submit} className="space-y-4 p-4">
+      <form onSubmit={submit} className="space-y-4 px-4 pb-4 pt-2">
         <fieldset>
           <legend className="sr-only">Prediction side</legend>
           <div className="grid grid-cols-2 gap-2">
             {(["yes", "no"] as const).map((item) => {
               const active = side === item;
-              const color = item === "yes" ? "#22c55e" : "#fb7185";
+              const yes = item === "yes";
               return (
                 <button
                   key={item}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setSide(item)}
-                  className="h-12 rounded-xl border text-sm font-bold transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300"
-                  style={{
-                    background: active ? `${color}24` : "rgba(255,255,255,0.03)",
-                    borderColor: active ? `${color}66` : "rgba(255,255,255,0.07)",
-                    color: active ? color : "#a1a1aa",
-                  }}
+                  className={cx(
+                    "h-[54px] rounded-xl border px-3 text-sm font-black transition-colors",
+                    focusClass,
+                    active
+                      ? yes ? "border-[var(--pm-yes-strong)] bg-[var(--pm-yes-bg)] text-[var(--pm-yes)] shadow-[0_0_0_1px_rgba(45,212,191,0.18)]" : "border-[var(--pm-no-strong)] bg-[var(--pm-no-bg)] text-[var(--pm-no)] shadow-[0_0_0_1px_rgba(251,113,133,0.18)]"
+                      : "border-[var(--pm-border)] bg-[var(--pm-field)] text-[var(--pm-muted)] hover:text-[var(--pm-text)]",
+                  )}
                 >
                   {item.toUpperCase()} {odds(sidePrice(market, item))}
                 </button>
@@ -205,18 +368,22 @@ function OrderTicket(props: {
 
         <fieldset>
           <legend className="sr-only">Order action</legend>
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-field)] p-1">
             {(["buy", "sell"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
+                aria-pressed={action === item}
                 onClick={() => setAction(item)}
-                className="h-10 rounded-lg text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300"
-                style={{
-                  background: action === item ? "rgba(255,255,255,0.10)" : "transparent",
-                  color: action === item ? "#fafafa" : "#71717a",
-                }}
+                className={cx(
+                  "inline-flex h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-colors",
+                  focusClass,
+                  action === item
+                    ? item === "buy" ? "bg-[var(--pm-yes-bg)] text-[var(--pm-yes)]" : "bg-[var(--pm-panel-strong)] text-[var(--pm-muted)]"
+                    : "text-[var(--pm-faint)] hover:text-[var(--pm-muted)]",
+                )}
               >
+                {item === "buy" ? <ShoppingCart size={14} aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}
                 {item === "buy" ? "Buy shares" : "Sell held"}
               </button>
             ))}
@@ -224,7 +391,7 @@ function OrderTicket(props: {
         </fieldset>
 
         <div>
-          <label htmlFor="prediction-shares" className="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+          <label htmlFor="prediction-shares" className="mb-1.5 block text-xs font-semibold text-[var(--pm-muted)]">
             Shares
           </label>
           <input
@@ -238,15 +405,21 @@ function OrderTicket(props: {
             aria-invalid={err ? "true" : undefined}
             aria-describedby={err ? "prediction-order-error" : undefined}
             placeholder="10"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-transparent px-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-700 focus-visible:ring-2 focus-visible:ring-cyan-300"
+            className={cx("h-11 w-full rounded-xl border border-[var(--pm-border)] bg-[var(--pm-field)] px-3 font-mono text-sm text-[var(--pm-text)] outline-none placeholder:text-[var(--pm-faint)]", focusClass)}
           />
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 grid grid-cols-4 gap-2">
             {[5, 10, 25, 50].map((amount) => (
               <button
                 key={amount}
                 type="button"
                 onClick={() => setShares(String(amount))}
-                className="h-9 rounded-lg border border-white/[0.06] px-3 font-mono text-xs text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300 focus-visible:ring-2 focus-visible:ring-cyan-300"
+                className={cx(
+                  "h-9 rounded-lg border px-2 font-mono text-xs transition-colors",
+                  focusClass,
+                  shares === String(amount)
+                    ? "border-[var(--pm-yes-border)] bg-[var(--pm-yes-bg)] text-[var(--pm-yes)]"
+                    : "border-[var(--pm-border)] bg-[var(--pm-panel-soft)] text-[var(--pm-muted)] hover:text-[var(--pm-text)]",
+                )}
               >
                 {amount}
               </button>
@@ -254,121 +427,262 @@ function OrderTicket(props: {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">Price</span>
-            <span className="font-mono text-zinc-300">{odds(currentPrice)}</span>
+        <div className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] p-3 text-xs">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Price</span>
+            <span className="font-mono font-semibold text-[var(--pm-text)]">{odds(currentPrice)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">{action === "buy" ? "Cost" : "Proceeds"}</span>
-            <span className="font-mono text-zinc-300">{money(notional, 3)}</span>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">{action === "buy" ? "Cost" : "Proceeds"}</span>
+            <span className="font-mono font-semibold text-[var(--pm-text)]">{money(notional, 3)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">Max payout</span>
-            <span className="font-mono text-zinc-300">{money(maxPayout, 2)}</span>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Max payout</span>
+            <span className="font-mono font-semibold text-[var(--pm-yes)]">{money(maxPayout, 3)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">Max profit</span>
-            <span className="font-mono text-emerald-300">{money(maxProfit, 2)}</span>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Max profit</span>
+            <span className="font-mono font-semibold text-[var(--pm-yes)]">{money(maxProfit, 3)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">Paper cash</span>
-            <span className="font-mono text-zinc-300">{money(cashUSDC, 2)}</span>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Held {side.toUpperCase()}</span>
+            <span className="font-mono font-semibold text-[var(--pm-muted)]">{heldShares.toFixed(2)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500">Held {side.toUpperCase()}</span>
-            <span className="font-mono text-zinc-300">{heldShares.toFixed(2)}</span>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Paper cash</span>
+            <span className="font-mono font-semibold text-[var(--pm-text)]">{money(cashUSDC, 2)}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <span className="text-[var(--pm-faint)]">Portfolio</span>
+            <span className="font-mono font-semibold text-[var(--pm-text)]">{money(portfolioValue, 2)} · {openPositions}</span>
           </div>
         </div>
 
         {err && (
-          <div id="prediction-order-error" className="flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.08] px-3 py-2">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-rose-300" />
-            <p className="text-xs leading-relaxed text-rose-200">{err}</p>
+          <div id="prediction-order-error" className="flex items-start gap-2 rounded-xl border border-[var(--pm-no-border)] bg-[var(--pm-no-bg)] px-3 py-2">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[var(--pm-no)]" aria-hidden="true" />
+            <p className="text-xs leading-relaxed text-[var(--pm-no)]">{err}</p>
           </div>
         )}
 
         <button
           type="submit"
-          className="h-12 w-full rounded-xl border text-sm font-bold transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!market.startPrice || !market.livePrice || market.timeRemainingMs <= 0}
-          style={{
-            background: side === "yes" ? "rgba(34,197,94,0.16)" : "rgba(251,113,133,0.14)",
-            borderColor: side === "yes" ? "rgba(34,197,94,0.28)" : "rgba(251,113,133,0.26)",
-            color: side === "yes" ? "#22c55e" : "#fb7185",
-          }}
+          disabled={!marketReady}
+          className={cx(
+            "h-12 w-full rounded-xl border text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:border-[var(--pm-border)] disabled:bg-[var(--pm-panel-soft)] disabled:text-[var(--pm-faint)]",
+            focusClass,
+            side === "yes"
+              ? "border-[var(--pm-yes-border)] bg-gradient-to-r from-emerald-400 to-teal-500 text-[#032014] hover:brightness-110"
+              : "border-[var(--pm-no-border)] bg-gradient-to-r from-rose-400 to-pink-500 text-[#26030a] hover:brightness-110",
+          )}
         >
-          {action === "buy" ? "Buy" : "Sell"} {side.toUpperCase()}
+          {action === "buy" ? "Place order" : "Place sell order"}
         </button>
       </form>
     </section>
   );
 }
 
-function PositionsPanel(props: {
+function TerminalUtilityBar(props: {
+  status: string;
+  cashUSDC: number;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 lg:mr-36">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--pm-yes-strong)] shadow-[0_0_14px_rgba(52,211,153,0.75)]" />
+        <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-[var(--pm-faint)]">Prediction Market</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <StatusBadge status={props.status} />
+        <span className="hidden h-10 items-center rounded-full border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 font-mono text-xs text-[var(--pm-muted)] sm:inline-flex">
+          {money(props.cashUSDC)}
+        </span>
+        <button
+          type="button"
+          onClick={props.onRefresh}
+          className={cx("inline-flex h-10 items-center gap-2 rounded-full border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 text-xs font-semibold text-[var(--pm-muted)] transition-colors hover:text-[var(--pm-text)]", focusClass)}
+          aria-label="Refresh prediction market history"
+        >
+          <RefreshCw size={14} className={props.loading ? "animate-spin" : ""} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ActiveMarketHeader(props: {
+  market: PredictionMarket;
+  markets: PredictionMarket[];
+  status: ReturnType<typeof statusTone>;
+  lastMoveUp: boolean;
+  onSelectMarket: (key: string) => void;
+}) {
+  const { market, markets, status, lastMoveUp, onSelectMarket } = props;
+  const assetWindows = markets.filter((item) => item.asset === market.asset);
+
+  return (
+    <div className="grid gap-4 border-b border-[var(--pm-border)] p-4 lg:grid-cols-[minmax(0,1fr)_290px]">
+      <div className="min-w-0">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            className="inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-bold"
+            style={{ color: status.color, background: status.bg, borderColor: status.border }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            Active market
+          </span>
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 font-mono text-xs text-[var(--pm-muted)]">
+            <AssetBadge asset={market.asset} compact />
+            {market.label}
+          </span>
+        </div>
+
+        <h2 id="active-market-title" className="max-w-3xl text-xl font-bold leading-tight text-[var(--pm-text)]">
+          {market.question}
+        </h2>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <StatCell label="Open" value={price(market.startPrice, market.asset)} />
+          <StatCell label="Live" value={price(market.livePrice, market.asset)} tone={lastMoveUp ? "yes" : "no"} />
+          <StatCell label="Distance" value={money(market.distanceUsd, market.asset === "BTC" ? 1 : 4)} tone={(market.distanceUsd ?? 0) >= 0 ? "yes" : "no"} />
+          <StatCell label="Move" value={pct(market.changePct)} tone={(market.changePct ?? 0) >= 0 ? "yes" : "no"} />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="flex rounded-xl border border-[var(--pm-border)] bg-[var(--pm-field)] p-1" aria-label="Market window">
+            {assetWindows.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelectMarket(item.key)}
+                aria-pressed={item.key === market.key}
+                className={cx(
+                  "h-9 rounded-lg px-3 font-mono text-xs font-semibold transition-colors",
+                  focusClass,
+                  item.key === market.key ? "bg-[var(--pm-panel-strong)] text-[var(--pm-text)]" : "text-[var(--pm-faint)] hover:text-[var(--pm-muted)]",
+                )}
+              >
+                {item.durationMinutes}m
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden items-center gap-1 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-field)] p-1 text-[var(--pm-muted)] lg:flex" aria-hidden="true">
+            {[ChartSpline, SlidersHorizontal, Expand, MoreVertical].map((Icon, index) => (
+              <span key={index} className="flex h-8 w-8 items-center justify-center rounded-lg">
+                <Icon size={15} strokeWidth={1.7} />
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 self-start">
+        <QuoteBlock side="yes" value={market.yesPrice} />
+        <QuoteBlock side="no" value={market.noPrice} />
+      </div>
+    </div>
+  );
+}
+
+function PortfolioStrip(props: {
+  cashUSDC: number;
+  portfolioValue: number;
+  openPositions: number;
+  settlements: ReturnType<typeof usePredictionPaper>["state"]["settlements"];
+}) {
+  const pnl = props.portfolioValue - 1_000;
+  const closed = props.settlements.length;
+  const wins = props.settlements.filter((settlement) => settlement.pnl > 0).length;
+  const winRate = closed ? `${((wins / closed) * 100).toFixed(1)}%` : "--";
+  const cells = [
+    { label: "Paper cash", value: money(props.cashUSDC, 2), icon: CircleDollarSign, tone: "default" as const },
+    { label: "Total positions", value: String(props.openPositions), icon: BriefcaseBusiness, tone: "default" as const },
+    { label: "Open P&L", value: money(pnl, 2), icon: TrendingUp, tone: pnl >= 0 ? "yes" as const : "no" as const },
+    { label: "Win rate", value: winRate, icon: Target, tone: "default" as const },
+    { label: "Equity", value: money(props.portfolioValue, 2), icon: PieChart, tone: "default" as const },
+  ];
+
+  return (
+    <section className={cx(panelClass, "grid grid-cols-1 divide-y divide-[var(--pm-border)] overflow-hidden md:grid-cols-5 md:divide-x md:divide-y-0")} aria-label="Paper portfolio summary">
+      {cells.map(({ label, value, icon: Icon, tone }) => (
+        <div key={label} className="flex items-center gap-3 px-4 py-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] text-[var(--pm-muted)]">
+            <Icon size={18} strokeWidth={1.6} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--pm-faint)]">{label}</p>
+            <p className={cx("mt-1 truncate font-mono text-sm font-bold", tone === "yes" && "text-[var(--pm-yes)]", tone === "no" && "text-[var(--pm-no)]", tone === "default" && "text-[var(--pm-text)]")}>
+              {value}
+            </p>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ActivityPanel(props: {
   market: PredictionMarket;
   positions: ReturnType<typeof usePredictionPaper>["state"]["positions"];
   fills: ReturnType<typeof usePredictionPaper>["state"]["fills"];
   settlements: ReturnType<typeof usePredictionPaper>["state"]["settlements"];
   clearHistory: () => void;
+  titleId?: string;
 }) {
-  const { market, positions, fills, settlements, clearHistory } = props;
-  const openPositions = positions.slice(0, 8);
+  const { market, positions, fills, settlements, clearHistory, titleId = "activity-title" } = props;
+  const openPositions = positions.slice(0, 4);
+  const hasHistory = fills.length > 0 || settlements.length > 0;
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4">
+    <section className={panelClass} aria-labelledby={titleId}>
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--pm-border)] px-4 py-3">
         <div>
-          <p className="text-sm font-semibold text-zinc-100">Positions</p>
-          <p className="mt-1 text-xs text-zinc-500">{openPositions.length} open · {settlements.length} settled</p>
+          <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold text-[var(--pm-text)]">
+            <History size={15} aria-hidden="true" />
+            Activity
+          </h2>
+          <p className="mt-1 text-xs text-[var(--pm-faint)]">{openPositions.length} open · {settlements.length} settled</p>
         </div>
-        {(fills.length > 0 || settlements.length > 0) && (
+        {hasHistory && (
           <button
             type="button"
             onClick={clearHistory}
-            className="flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.06] px-3 text-xs font-semibold text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300 focus-visible:ring-2 focus-visible:ring-cyan-300"
+            className={cx("inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-2.5 text-xs font-semibold text-[var(--pm-muted)] hover:text-[var(--pm-text)]", focusClass)}
           >
-            <X size={14} />
+            <X size={14} aria-hidden="true" />
             Clear
           </button>
         )}
       </div>
-      <div className="max-h-[420px] overflow-y-auto">
+
+      <div className="max-h-[360px] overflow-y-auto p-3">
         {openPositions.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm font-semibold text-zinc-300">No paper shares yet</p>
-            <p className="mx-auto mt-2 max-w-[280px] text-xs leading-relaxed text-zinc-500">
-              Pick YES or NO, buy a few shares, then watch the window settle at the timer.
-            </p>
+          <div className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-4 py-6 text-center">
+            <p className="text-sm font-semibold text-[var(--pm-text)]">No paper shares</p>
+            <p className="mx-auto mt-1 max-w-[280px] text-xs leading-relaxed text-[var(--pm-faint)]">The ticket is ready when you want to test a YES or NO view.</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/[0.05]">
+          <div className="space-y-2">
             {openPositions.map((position) => {
               const currentMarket = position.contractId === market.contractId ? market : null;
               const mark = currentMarket ? sidePrice(currentMarket, position.side) : null;
               const value = mark ? position.shares * mark : null;
               const pnl = value === null ? null : value - position.shares * position.avgPrice;
+              const yes = position.side === "yes";
               return (
-                <div key={position.id} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold text-zinc-200">{position.asset} {position.durationMinutes}m {position.side.toUpperCase()}</p>
-                      <p className="mt-1 truncate font-mono text-[10px] text-zinc-600">{position.contractId}</p>
-                    </div>
-                    <span className="rounded-lg border border-white/[0.06] px-2 py-1 font-mono text-[11px] text-zinc-400">{position.shares.toFixed(2)}</span>
+                <div key={position.id} className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-xs font-semibold text-[var(--pm-text)]">{position.asset} {position.durationMinutes}m {position.side.toUpperCase()}</p>
+                    <span className={cx("font-mono text-xs", yes ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{position.shares.toFixed(2)}</span>
                   </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                    <div>
-                      <p className="text-zinc-600">Avg</p>
-                      <p className="font-mono text-zinc-300">{odds(position.avgPrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-zinc-600">Mark</p>
-                      <p className="font-mono text-zinc-300">{mark ? odds(mark) : "--"}</p>
-                    </div>
-                    <div>
-                      <p className="text-zinc-600">PnL</p>
-                      <p className="font-mono" style={{ color: (pnl ?? 0) >= 0 ? "#22c55e" : "#fb7185" }}>{pnl === null ? "--" : money(pnl, 2)}</p>
-                    </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <span className="text-[var(--pm-faint)]">Avg <b className="font-mono font-semibold text-[var(--pm-muted)]">{odds(position.avgPrice)}</b></span>
+                    <span className="text-[var(--pm-faint)]">Mark <b className="font-mono font-semibold text-[var(--pm-muted)]">{mark ? odds(mark) : "--"}</b></span>
+                    <span className={cx("font-mono font-semibold", (pnl ?? 0) >= 0 ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{pnl === null ? "--" : money(pnl, 2)}</span>
                   </div>
                 </div>
               );
@@ -376,28 +690,20 @@ function PositionsPanel(props: {
           </div>
         )}
 
-        {(fills.length > 0 || settlements.length > 0) && (
-          <div className="border-t border-white/[0.05] px-4 py-3">
-            <p className="mb-2 text-xs font-semibold text-zinc-100">Recent tape</p>
-            <div className="space-y-2">
-              {settlements.slice(0, 3).map((settlement) => (
-                <div key={settlement.id} className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-zinc-300">SETTLED {settlement.asset} {settlement.durationMinutes}m</span>
-                    <span className="font-mono" style={{ color: settlement.pnl >= 0 ? "#22c55e" : "#fb7185" }}>{money(settlement.pnl, 2)}</span>
-                  </div>
-                  <p className="mt-1 font-mono text-[10px] text-zinc-600">Outcome {settlement.outcome.toUpperCase()} · final {price(settlement.finalPrice, settlement.asset)}</p>
-                </div>
-              ))}
-              {fills.slice(0, 5).map((fill) => (
-                <div key={fill.id} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-xs">
-                  <span className="font-semibold" style={{ color: fill.side === "yes" ? "#22c55e" : "#fb7185" }}>
-                    {fill.action.toUpperCase()} {fill.side.toUpperCase()} · {fill.asset} {fill.durationMinutes}m
-                  </span>
-                  <span className="font-mono text-zinc-400">{fill.shares.toFixed(2)} @ {odds(fill.price)}</span>
-                </div>
-              ))}
-            </div>
+        {hasHistory && (
+          <div className="mt-3 space-y-2">
+            {settlements.slice(0, 2).map((settlement) => (
+              <div key={settlement.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2 text-xs">
+                <span className="font-semibold text-[var(--pm-muted)]">SETTLED {settlement.asset} {settlement.durationMinutes}m</span>
+                <span className={cx("font-mono", settlement.pnl >= 0 ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{money(settlement.pnl, 2)}</span>
+              </div>
+            ))}
+            {fills.slice(0, 4).map((fill) => (
+              <div key={fill.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2 text-xs">
+                <span className={cx("font-semibold", fill.side === "yes" ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>{fill.action.toUpperCase()} {fill.side.toUpperCase()}</span>
+                <span className="font-mono text-[var(--pm-muted)]">{fill.shares.toFixed(2)} @ {odds(fill.price)}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -405,7 +711,7 @@ function PositionsPanel(props: {
   );
 }
 
-function PolymarketPanel(props: {
+function ReferencePanel(props: {
   asset: string;
   references: PolymarketReference[];
   warning: string | null;
@@ -413,36 +719,35 @@ function PolymarketPanel(props: {
 }) {
   const { asset, references, warning, loading } = props;
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center gap-2 border-b border-white/[0.05] px-4 py-4">
-        <Sparkles size={15} className="text-rose-300" />
-        <div>
-          <p className="text-sm font-semibold text-zinc-100">Polymarket reference</p>
-          <p className="mt-1 text-xs text-zinc-500">{asset} related live markets when available</p>
-        </div>
+    <section className={panelClass} aria-labelledby="reference-title">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--pm-border)] px-4 py-3">
+        <h2 id="reference-title" className="flex items-center gap-2 text-sm font-semibold text-[var(--pm-text)]">
+          <Sparkles size={15} aria-hidden="true" />
+          Reference
+        </h2>
+        <span className="font-mono text-xs text-[var(--pm-faint)]">{asset}</span>
       </div>
-      <div className="p-4">
+      <div className="p-3">
         {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="h-14 animate-pulse rounded-xl bg-white/[0.04]" />
-            ))}
+          <div className="space-y-2" aria-busy="true" aria-label="Loading Polymarket references">
+            <div className="h-12 animate-pulse rounded-xl bg-[var(--pm-panel-soft)]" />
+            <div className="h-12 animate-pulse rounded-xl bg-[var(--pm-panel-soft)]" />
           </div>
         ) : warning ? (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" />
-            <p className="text-xs leading-relaxed text-amber-100">{warning}</p>
+          <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+            <p className="text-xs leading-relaxed text-amber-600">{warning}</p>
           </div>
         ) : references.length === 0 ? (
-          <p className="text-xs leading-relaxed text-zinc-500">
-            No clean related live Polymarket markets returned. Wisp paper markets still run from Binance realtime prices.
+          <p className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-3 text-xs leading-relaxed text-[var(--pm-faint)]">
+            No clean related Polymarket markets returned.
           </p>
         ) : (
           <div className="space-y-2">
-            {references.slice(0, 3).map((reference) => (
-              <div key={reference.id} className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2">
-                <p className="line-clamp-2 text-xs font-semibold leading-relaxed text-zinc-300">{reference.question}</p>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-zinc-600">
+            {references.slice(0, 2).map((reference) => (
+              <div key={reference.id} className="rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2">
+                <p className="line-clamp-1 text-xs font-semibold text-[var(--pm-text)]">{reference.question}</p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-[var(--pm-faint)]">
                   <span>Liq {compact(reference.liquidity)}</span>
                   <span>Vol {compact(reference.volume)}</span>
                   {reference.outcomePrices.slice(0, 2).map((value, idx) => (
@@ -458,21 +763,51 @@ function PolymarketPanel(props: {
   );
 }
 
+function LoadingShell() {
+  return (
+    <div className="flex min-h-[520px] items-center justify-center bg-[var(--pm-bg)] px-6 text-[var(--pm-text)]" style={pmSurfaceVars}>
+      <div className={cx("w-full max-w-xl p-8 text-center", panelClass)}>
+        <Activity size={22} className="mx-auto animate-pulse text-[var(--pm-faint)]" aria-hidden="true" />
+        <p className="mt-3 text-sm font-semibold">Loading prediction markets</p>
+        <p className="mt-2 text-xs text-[var(--pm-faint)]">Fetching BTC/SOL futures candles and opening the rolling books.</p>
+      </div>
+    </div>
+  );
+}
+
 export function PredictionMarketTerminal() {
   const { markets, loading, error, wsStatus, refreshHistory } = usePredictionMarkets();
   const [activeKey, setActiveKey] = useState("btc-5m");
+  const [compactChart, setCompactChart] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const activeMarket = markets.find((market) => market.key === activeKey) ?? markets[0];
+  const activeAsset = activeMarket?.asset;
   const paper = usePredictionPaper(markets);
   const [references, setReferences] = useState<PolymarketReference[]>([]);
   const [refsLoading, setRefsLoading] = useState(false);
   const [refsWarning, setRefsWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeMarket) return;
+    queueMicrotask(() => setHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const sync = () => setCompactChart(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!activeAsset) return;
     let cancelled = false;
-    setRefsLoading(true);
-    setRefsWarning(null);
-    fetch(`/api/prediction/polymarket?asset=${activeMarket.asset}`, { cache: "no-store" })
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setRefsLoading(true);
+      setRefsWarning(null);
+    });
+    fetch(`/api/prediction/polymarket?asset=${activeAsset}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((json: { references?: PolymarketReference[]; warning?: string }) => {
         if (cancelled) return;
@@ -491,7 +826,7 @@ export function PredictionMarketTerminal() {
     return () => {
       cancelled = true;
     };
-  }, [activeMarket?.asset]);
+  }, [activeAsset]);
 
   const activeYes = activeMarket ? paper.positionsByKey.get(`${activeMarket.contractId}:yes`) : undefined;
   const activeNo = activeMarket ? paper.positionsByKey.get(`${activeMarket.contractId}:no`) : undefined;
@@ -503,208 +838,141 @@ export function PredictionMarketTerminal() {
     activeMarket?.previousPrice !== undefined
       ? activeMarket.livePrice >= activeMarket.previousPrice
       : true;
+  const chartHeight = compactChart ? 340 : 330;
 
-  if (!activeMarket) {
-    return (
-      <div className="flex min-h-[520px] items-center justify-center px-6">
-        <div className="w-full max-w-xl rounded-2xl border border-white/[0.06] bg-[#0d1020] p-8 text-center">
-          <p className="text-sm font-semibold text-zinc-200">Loading prediction markets</p>
-          <p className="mt-2 text-xs text-zinc-500">Fetching BTC/SOL futures candles and opening the rolling books.</p>
-        </div>
-      </div>
-    );
-  }
+  if (!hydrated || !activeMarket) return <LoadingShell />;
 
   return (
     <div
       data-native-scroll
-      className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[#080b14]"
+      className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--pm-bg)] text-[var(--pm-text)] transition-colors"
       style={{
+        ...pmSurfaceVars,
         scrollbarWidth: "thin",
         WebkitOverflowScrolling: "touch",
-        background: "linear-gradient(180deg, #080b14 0%, #090d18 46%, #080b14 100%)",
+        background: "radial-gradient(circle at 22% -10%, rgba(56,189,248,0.07), transparent 24%), radial-gradient(circle at 82% 8%, rgba(251,113,133,0.06), transparent 22%), linear-gradient(180deg, #030713 0%, #050b16 58%, #030713 100%)",
       }}
     >
-      <div className="mx-auto max-w-[1500px] px-5 pb-12 pt-6 lg:px-7">
-        <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 px-5 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] lg:pr-44">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-400/20 bg-rose-400/10">
-                  <TrendingUp size={17} className="text-rose-300" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="truncate text-2xl font-extrabold tracking-tight text-zinc-50">Prediction Market</h1>
-                  <p className="mt-1 text-sm text-zinc-500">Paper trade rolling BTC/SOL 5m and 15m binary markets.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs xl:justify-end">
-              <span
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-semibold"
-                style={{ color: status.color, background: status.bg, borderColor: status.border }}
-              >
-                <Signal size={13} />
-                Binance WS {status.label}
-              </span>
-              <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 font-mono text-zinc-500">
-                <Clock3 size={13} />
-                {timer(activeMarket.timeRemainingMs)} left
-              </span>
-              <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 font-mono text-zinc-500">
-                Paper USDC {money(paper.state.cashUSDC)}
-              </span>
-              <button
-                type="button"
-                onClick={() => void refreshHistory()}
-                className="flex h-9 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                Refresh
-              </button>
-            </div>
-          </div>
-        </section>
+      <div className="mx-auto max-w-[1500px] px-4 pb-8 pt-3 sm:px-5 lg:px-5">
+        <TerminalUtilityBar
+          status={activeMarket.wsStatus ?? wsStatus}
+          cashUSDC={paper.state.cashUSDC}
+          loading={loading}
+          onRefresh={() => void refreshHistory()}
+        />
 
         {error && (
-          <div className="mb-4 flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] px-4 py-3">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-300" />
+          <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[var(--pm-no-border)] bg-[var(--pm-no-bg)] px-4 py-3">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--pm-no)]" aria-hidden="true" />
             <div>
-              <p className="text-sm font-semibold text-rose-100">Market history failed</p>
-              <p className="mt-1 text-xs text-rose-200/80">{error}</p>
+              <p className="text-sm font-semibold text-[var(--pm-no)]">Market history failed</p>
+              <p className="mt-1 text-xs text-[var(--pm-no)]">{error}</p>
             </div>
           </div>
         )}
 
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {markets.map((market) => (
-            <MarketCard key={market.key} market={market} active={market.key === activeMarket.key} onClick={() => setActiveKey(market.key)} />
+            <MarketSelectorCard key={market.key} market={market} active={market.key === activeMarket.key} onClick={() => setActiveKey(market.key)} />
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-4">
-            <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
-              <div className="border-b border-white/[0.06] px-5 py-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600">Active market</p>
-                    <h2 className="mt-1 text-xl font-bold leading-tight text-zinc-50">{activeMarket.question}</h2>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Open <span className="text-zinc-300">{price(activeMarket.startPrice, activeMarket.asset)}</span></span>
-                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Live <span className={lastMoveUp ? "text-emerald-300" : "text-rose-300"}>{price(activeMarket.livePrice, activeMarket.asset)}</span></span>
-                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Distance <span className={(activeMarket.distanceUsd ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{money(activeMarket.distanceUsd, activeMarket.asset === "BTC" ? 1 : 4)}</span></span>
-                      <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 font-mono text-zinc-500">Move <span className={(activeMarket.changePct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}>{pct(activeMarket.changePct)}</span></span>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_336px]">
+          <main className="min-w-0 space-y-4">
+            <section className={cx(panelClass, "overflow-hidden")} aria-labelledby="live-chart-title">
+              <ActiveMarketHeader
+                market={activeMarket}
+                markets={markets}
+                status={status}
+                lastMoveUp={lastMoveUp}
+                onSelectMarket={setActiveKey}
+              />
+
+              <div className="bg-[var(--pm-chart)]">
+                <div className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] text-[var(--pm-muted)]">
+                      <BarChart3 size={16} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p id="live-chart-title" className="text-sm font-bold">Live window chart</p>
+                      <p className="text-xs text-[var(--pm-faint)]">Reference line marks the window open.</p>
                     </div>
                   </div>
-
-                  <div className="grid min-w-[280px] grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/70">YES mark</p>
-                      <p className="mt-1 font-mono text-2xl font-bold text-emerald-300">{odds(activeMarket.yesPrice)}</p>
-                    </div>
-                    <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.055] px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-300/70">NO mark</p>
-                      <p className="mt-1 font-mono text-2xl font-bold text-rose-300">{odds(activeMarket.noPrice)}</p>
-                    </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2 font-mono text-[var(--pm-muted)]">
+                      Open {price(activeMarket.startPrice, activeMarket.asset)}
+                    </span>
+                    <span className={cx("rounded-full border border-[var(--pm-border)] bg-[var(--pm-panel-soft)] px-3 py-2 font-mono", lastMoveUp ? "text-[var(--pm-yes)]" : "text-[var(--pm-no)]")}>
+                      Live {price(activeMarket.livePrice, activeMarket.asset)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-                  <motion.div
-                    className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-300 to-emerald-300"
-                    style={{ width: `${activeMarket.progressPct}%` }}
-                    transition={{ duration: 0.15 }}
-                  />
-                </div>
+                {loading && activeMarket.candles.length === 0 ? (
+                  <div className="flex h-[330px] items-center justify-center">
+                    <div className="text-center">
+                      <Activity size={22} className="mx-auto animate-pulse text-[var(--pm-faint)]" aria-hidden="true" />
+                      <p className="mt-3 text-sm font-semibold">Loading Binance candles</p>
+                      <p className="mt-1 text-xs text-[var(--pm-faint)]">Opening realtime paper book</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-1 pb-2 sm:px-2">
+                    <CandlesChart
+                      candles={activeMarket.candles}
+                      height={chartHeight}
+                      livePrice={activeMarket.livePrice}
+                      symbol={activeMarket.contractId}
+                      referencePrice={{
+                        price: activeMarket.startPrice,
+                        title: "open",
+                        color: "#f59e0b",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-
-              {loading && activeMarket.candles.length === 0 ? (
-                <div className="flex h-[520px] items-center justify-center">
-                  <div className="text-center">
-                    <Activity size={22} className="mx-auto animate-pulse text-zinc-600" />
-                    <p className="mt-3 text-sm font-semibold text-zinc-300">Loading Binance candles</p>
-                    <p className="mt-1 text-xs text-zinc-600">Opening realtime paper book</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="px-2 pb-2 pt-3">
-                  <CandlesChart
-                    candles={activeMarket.candles}
-                    height={520}
-                    livePrice={activeMarket.livePrice}
-                    symbol={activeMarket.contractId}
-                    referencePrice={{
-                      price: activeMarket.startPrice,
-                      title: "open",
-                      color: "#fbbf24",
-                    }}
-                  />
-                </div>
-              )}
             </section>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
-                <div className="mb-3 flex items-center gap-2">
-                  <Wallet size={15} className="text-cyan-300" />
-                  <p className="text-sm font-semibold text-zinc-100">Account</p>
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Cash</span><span className="font-mono text-zinc-300">{money(paper.state.cashUSDC)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Portfolio value</span><span className="font-mono text-zinc-300">{money(paper.portfolioValue)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Open positions</span><span className="font-mono text-zinc-300">{paper.state.positions.length}</span></div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
-                <div className="mb-3 flex items-center gap-2">
-                  <ArrowUp size={15} className="text-emerald-300" />
-                  <p className="text-sm font-semibold text-zinc-100">YES exposure</p>
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Shares</span><span className="font-mono text-zinc-300">{(activeYes?.shares ?? 0).toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Avg</span><span className="font-mono text-zinc-300">{activeYes ? odds(activeYes.avgPrice) : "--"}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Mark value</span><span className="font-mono text-zinc-300">{money(activePositionValue(activeMarket, "yes", activeYes?.shares ?? 0))}</span></div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/[0.07] bg-[#0b1020]/95 p-4 shadow-[0_16px_42px_rgba(0,0,0,0.20)]">
-                <div className="mb-3 flex items-center gap-2">
-                  <ArrowDown size={15} className="text-rose-300" />
-                  <p className="text-sm font-semibold text-zinc-100">NO exposure</p>
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Shares</span><span className="font-mono text-zinc-300">{(activeNo?.shares ?? 0).toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Avg</span><span className="font-mono text-zinc-300">{activeNo ? odds(activeNo.avgPrice) : "--"}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-zinc-500">Mark value</span><span className="font-mono text-zinc-300">{money(activePositionValue(activeMarket, "no", activeNo?.shares ?? 0))}</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
+            <PortfolioStrip
+              cashUSDC={paper.state.cashUSDC}
+              portfolioValue={paper.portfolioValue}
+              openPositions={paper.state.positions.length}
+              settlements={paper.state.settlements}
+            />
 
-          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <ActivityPanel
+                market={activeMarket}
+                positions={paper.state.positions}
+                fills={paper.state.fills}
+                settlements={paper.state.settlements}
+                clearHistory={paper.clearHistory}
+                titleId="activity-title"
+              />
+
+              <ReferencePanel
+                asset={activeMarket.asset}
+                references={references}
+                warning={refsWarning}
+                loading={refsLoading}
+              />
+            </div>
+          </main>
+
+          <aside className="space-y-4 xl:sticky xl:top-3 xl:self-start">
             <OrderTicket
               market={activeMarket}
               cashUSDC={paper.state.cashUSDC}
+              portfolioValue={paper.portfolioValue}
+              openPositions={paper.state.positions.length}
               yesShares={activeYes?.shares ?? 0}
               noShares={activeNo?.shares ?? 0}
               onSubmit={({ side, action, shares }) => paper.placeOrder({ market: activeMarket, side, action, shares })}
               onReset={paper.reset}
             />
-            <PositionsPanel
-              market={activeMarket}
-              positions={paper.state.positions}
-              fills={paper.state.fills}
-              settlements={paper.state.settlements}
-              clearHistory={paper.clearHistory}
-            />
-            <PolymarketPanel
-              asset={activeMarket.asset}
-              references={references}
-              warning={refsWarning}
-              loading={refsLoading}
-            />
-          </div>
+          </aside>
         </div>
       </div>
 

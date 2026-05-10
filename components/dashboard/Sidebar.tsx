@@ -108,8 +108,9 @@ export default function Sidebar() {
       className="fixed left-0 top-0 h-screen flex flex-col z-40"
       style={{
         width: 252,
-        background: "linear-gradient(180deg, #0c0f22 0%, #080a16 100%)",
-        borderRight: "1px solid rgba(255,255,255,0.055)",
+        background: "var(--dash-shell)",
+        borderRight: "1px solid var(--dash-border)",
+        boxShadow: "var(--dash-shadow)",
       }}
     >
       {/* Right-edge glow */}
@@ -124,7 +125,7 @@ export default function Sidebar() {
       {/* ── Header ── */}
       <div
         className="flex items-center gap-3 px-5 h-[70px] flex-shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+        style={{ borderBottom: "1px solid var(--dash-border)" }}
       >
         <motion.div
           whileHover={{ scale: 1.08 }}
@@ -139,7 +140,7 @@ export default function Sidebar() {
             className="font-extrabold tracking-tight leading-none"
             style={{
               fontSize: 17,
-              background: "linear-gradient(120deg, #ffffff 0%, #b4a8f0 100%)",
+              background: "linear-gradient(120deg, var(--dash-text-strong) 0%, #b4a8f0 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -147,7 +148,7 @@ export default function Sidebar() {
           >
             Wisp
           </span>
-          <span style={{ fontSize: 9.5, color: "#3f3f46", marginTop: 2, letterSpacing: "0.03em" }}>
+          <span style={{ fontSize: 9.5, color: "var(--dash-faint)", marginTop: 2, letterSpacing: "0.03em" }}>
             Solana DeFi co-pilot
           </span>
         </div>
@@ -173,7 +174,7 @@ export default function Sidebar() {
             fontSize: 9.5,
             fontWeight: 700,
             letterSpacing: "0.2em",
-            color: "#27272a",
+            color: "var(--dash-subtle)",
             textTransform: "uppercase",
           }}
         >
@@ -183,7 +184,7 @@ export default function Sidebar() {
 
       {/* ── Nav ── */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto pb-2">
-        {nav.map(({ label, hint, href, icon: Icon, tourId, exact, accent, accentBg, accentBorder, glow }) => {
+        {nav.map(({ label, href, icon: Icon, tourId, exact, accent, accentBg, glow }) => {
           const active = isActive(href, exact);
 
           return (
@@ -192,11 +193,11 @@ export default function Sidebar() {
                 data-tour-id={`sidebar-${tourId}`}
                 className="relative flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer"
                 style={{
-                  background: active ? accentBg : "rgba(0,0,0,0)",
-                  border: "1px solid rgba(255,255,255,0)",
+                  background: active ? accentBg : "transparent",
+                  border: "1px solid transparent",
                 }}
                 whileHover={{
-                  background: active ? accentBg : "rgba(255,255,255,0.04)",
+                  background: active ? accentBg : "var(--dash-panel-soft)",
                 }}
                 transition={{ duration: 0.13 }}
               >
@@ -221,7 +222,7 @@ export default function Sidebar() {
                 <Icon
                   size={16}
                   strokeWidth={active ? 2 : 1.6}
-                  style={{ color: active ? accent : "#3f3f46", flexShrink: 0 }}
+                  style={{ color: active ? accent : "var(--dash-faint)", flexShrink: 0 }}
                 />
 
                 {/* Label */}
@@ -229,7 +230,7 @@ export default function Sidebar() {
                   style={{
                     fontSize: 13.5,
                     fontWeight: active ? 600 : 400,
-                    color: active ? accent : "#52525b",
+                    color: active ? accent : "var(--dash-faint)",
                     transition: "color 0.13s",
                   }}
                 >
@@ -253,7 +254,7 @@ export default function Sidebar() {
       </nav>
 
       {/* ── Divider ── */}
-      <div className="mx-4 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+      <div className="mx-4 h-px" style={{ background: "var(--dash-border)" }} />
 
       {/* ── Network status ── */}
       <div className="px-5 py-3.5 flex items-center gap-2">
@@ -263,9 +264,9 @@ export default function Sidebar() {
           animate={{ opacity: [1, 0.35, 1] }}
           transition={{ duration: 1.8, repeat: Infinity }}
         />
-        <Wifi size={11} color="#3f3f46" />
-        <span style={{ fontSize: 11, color: "#3f3f46" }}>Solana Mainnet</span>
-        <span className="ml-auto font-mono" style={{ fontSize: 10, color: "#27272a" }}>
+        <Wifi size={11} color="var(--dash-faint)" />
+        <span style={{ fontSize: 11, color: "var(--dash-faint)" }}>Solana Mainnet</span>
+        <span className="ml-auto font-mono" style={{ fontSize: 10, color: "var(--dash-subtle)" }}>
           &lt;100ms
         </span>
       </div>
@@ -275,8 +276,8 @@ export default function Sidebar() {
         <Link href="/">
           <motion.div
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl cursor-pointer"
-            style={{ color: "#3f3f46", background: "rgba(0,0,0,0)" }}
-            whileHover={{ color: "#71717a", background: "rgba(255,255,255,0.03)" }}
+            style={{ color: "var(--dash-faint)", background: "transparent" }}
+            whileHover={{ color: "var(--dash-muted)", background: "var(--dash-panel-soft)" }}
             transition={{ duration: 0.13 }}
           >
             <ChevronLeft size={13} strokeWidth={2.5} />

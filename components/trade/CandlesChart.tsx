@@ -197,7 +197,9 @@ export function CandlesChart(props: {
 
   const volData = useMemo(() => (candles ?? []).map((c) => ({
     time: c.time as UTCTimestamp, value: c.volume,
-    color: c.close >= c.open ? "rgba(34,197,94,0.45)" : "rgba(248,113,113,0.38)",
+    color: c.close >= c.open
+      ? "rgba(34,197,94,0.45)"
+      : "rgba(248,113,113,0.38)",
   })), [candles]);
 
   /* ── Chart init ─────────────────────────────────────────────────────────── */
@@ -208,7 +210,8 @@ export function CandlesChart(props: {
     const chart = createChart(el, {
       height,
       layout: {
-        background: { color: "transparent" }, textColor: "#52525b",
+        background: { color: "transparent" },
+        textColor: "#52525b",
         fontSize: 11, fontFamily: "'JetBrains Mono','Fira Mono',monospace",
       },
       grid: {
